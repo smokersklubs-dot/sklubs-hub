@@ -156,6 +156,7 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/' || url.pathname === '/index.html') {
       return send(res, 200, req.method === 'HEAD' ? '' : indexHtml, { 'content-type': 'text/html; charset=utf-8' });
     }
+    if (url.pathname === '/api/social/status') return sendJson(res, 200, { enabled: false });
     {
       const m = /^\/img\/(mylar|produits)\/([a-z0-9_]{1,60})\.jpg$/.exec(url.pathname);
       if (m) {
