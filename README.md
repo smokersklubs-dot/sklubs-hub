@@ -18,8 +18,22 @@ et magasin de documents `/api/doc/<nom>` stocké dans le schéma Postgres `hub`
 - `PUT /api/doc/<nom>` : même origine, `X-SK: 1`, JSON, `X-Base-Version` pour détecter les conflits (409)
 - `/health` : contrôle de vie, sans mot de passe
 
+## Prix fixés et paliers personnalisés
+
+Document `cfg_price_<produit>` (schéma 1) : `rules` (clé `[produit, variante ou format, quantité]` → prix HT),
+`tiers` (paliers ajoutés dans le tableau : `[{ key, q }]`, facultatif, 2000 au plus, sans doublon) et `history` (12 entrées,
+avec les paliers ajoutés ou retirés). Validation partagée par la page, le serveur (`src/docs.js`) et le moteur
+(`src/crm/price-rules.mjs`). Prix servi : prix fixé exact ; sinon formule native × coefficient (prix fixé / formule)
+interpolé en log(quantité) entre les paliers fixés voisins de la même série ; hors bornes, coefficient du palier le plus
+proche ; aucun palier, formule native. Jamais sous le plancher de marge. `/api/crm/v1/catalog` liste `customTiers`
+(quantité, prix HT, configuration pour `/price`) ; `/price` avec `includeInternal` expose `manualRule` et `interpolatedRule`.
+
 ## Tests
 
-Tests locaux sur une base Postgres jetable (schéma `hub`, table `docs`) :
+`npm test` : règles de prix (palier exact, intermédiaire, hors bornes, plancher, document ancien, validation refusée),
+moteur et API CRM sur documents en mémoire (14 produits, 401 sans jeton, 403 avec Origin).
+`node tests/dev-server.mjs 4199` : page réelle et API CRM sur documents en mémoire, sans base ni mot de passe (recette locale).
+
+Tests antérieurs sur une base Postgres jetable (schéma `hub`, table `docs`) :
 lecture, écriture, conflit de version, validation des formats, origine, taille (413),
 verrouillage après 8 échecs, et chargement de la page sans erreur CSP.

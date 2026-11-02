@@ -1278,6 +1278,18 @@ body:has(#app-mylar.mylar-consultation:not([hidden])) > .w {max-width:1540px}
 .price-editing button:disabled {opacity:.45;cursor:not-allowed}
 .price-table-tools :focus-visible {outline:2px solid #bd4c0e;outline-offset:3px}
 .price-table-tools [hidden] {display:none!important}
+.price-tier-form {display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:12px 0;padding:10px 12px;border:1px dashed var(--ln);border-radius:12px}
+.price-tier-form>strong {font-size:13px}
+.price-tier-form input,.price-tier-form select {font:16px var(--f);min-height:44px;max-width:100%}
+.price-tier-form input {width:150px}
+.price-tier-form select {max-width:320px}
+.price-tier-form [data-tier-hint] {flex-basis:100%}
+.price-table-tools:not(.price-editing) .price-tier-form {display:none}
+.price-tier-label input {width:110px!important}
+.price-tier-actions {display:flex;gap:6px;align-items:center;justify-content:flex-end;flex-wrap:wrap;font-size:12px;color:var(--mut)}
+.price-tier-actions button,.price-reset {font:12px var(--f);min-height:30px;padding:3px 9px;border:1px solid var(--ln);border-radius:8px;background:transparent;color:inherit;cursor:pointer}
+.price-reset {justify-self:end;color:var(--mut)}
+.price-tier-actions [data-tier-confirm] {background:#bd4c0e;color:#fff;border-color:#bd4c0e}
 .price-before,.price-after {display:block;font-variant-numeric:tabular-nums}.price-before {font-size:11px;color:var(--mut);text-decoration:line-through}.price-after {font-size:14px;color:#a4400d}
 @media(max-width:760px){.price-table-heading {align-items:flex-start}.price-table-heading>span{flex-basis:100%}.price-table-heading>button{width:100%}.price-table-actions>*{flex:1 1 45%}.price-table-actions>label{flex-basis:100%}.price-table-confirm .btn{width:100%;font-size:13px}.price-table-tools .btn{min-height:44px}.price-table-caption{font-size:12px}}
 
@@ -1371,6 +1383,7 @@ const eur=(x,d=2)=>x==null||isNaN(x)?'–':nf(x,d)+' €';
 const pct=(x,d=0)=>x==null||isNaN(x)?'–':nf(x*100,d)+' %';
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const MAT={'MOPP/VMPET/PE':'Métallisé','MOPP/AL/PE':'Aluminium'};
+let PRICE_TIERS=()=>[];// paliers personnalisés d’un produit (réaffecté par le bloc TABLE PRICING)
 const QS=[200,300,500,1000,2000,3000,5000];
 /* ---------- hypothèses ---------- */
 const DEF={fxAuto:true,matOn:false,matShare:.5,useVei:false,mats:{pe:{n:'Polyéthylène (PE)',base:8496.8,cur:8640,w:.3},pp:{n:'Polypropylène (PP)',base:8909.5,cur:9299,w:.3},pet:{n:'PET',base:7275.5,cur:7195.3,w:.25},al:{n:'Aluminium',base:23894.7,cur:23050,w:.15}},fx:.13335,secFx:.03,qual:.02,dens:1.1,over:.05,fixed:30,mS:.45,mB:.35,qB:2000,pos:.95,vat:.2,mat:0,mode:'air',modes:{air:{n:'Avion DDP',d:7,t:[[0,13.9],[25,12.5],[100,11],[250,10],[500,9]]},train:{n:'Train DDP',d:20,t:[[0,7],[100,6.5],[500,6]]},truck:{n:'Camion DDP',d:25,t:[[0,6],[100,5.5],[500,5]]},sea:{n:'Bateau DDP',d:40,t:[[0,5.2]]}}};
@@ -1471,11 +1484,16 @@ function renderCat(){
  const o=(a,v,f=x=>x)=>`<option value="">Tous</option>`+a.map(x=>`<option value="${esc(x)}"${x==v?' selected':''}>${esc(f(x))}</option>`).join('');
  $('p-cat').innerHTML=`<div class="pn"><div class="bar"><div class="fl"><label for="f-t">Type</label><select id="f-t">${o(TYPES,CF.t)}</select></div><div class="fl"><label for="f-m">Matière</label><select id="f-m">${o(Object.keys(MAT),CF.m,x=>MAT[x])}</select></div><div class="fl"><label for="f-q">Quantité</label><select id="f-q">${o(QS,CF.q,x=>nf(x,0))}</select></div><div class="fl"><label for="f-s">Référence</label><input id="f-s" type="search" placeholder="K7, Q2…" value="${esc(CF.s)}"></div><div class="fl"><label for="f-o">Seulement</label><select id="f-o"><option value="">Toutes les lignes</option><option value="1"${CF.over?' selected':''}>Au-dessus du marché</option></select></div><button class="btn g" id="csv">Exporter en CSV</button><span class="note" id="cnt"></span></div><div class="tw" id="tw"></div></div>`;catBody()}
 function catBody(){
- let rows=R.map(r=>({...r,dim:r.L*1000+r.H})).filter(r=>(!CF.t||r.t==CF.t)&&(!CF.m||r.m==CF.m)&&(!CF.q||r.q==CF.q)&&(!CF.s||r.ref.toLowerCase().includes(CF.s.toLowerCase()))&&(!CF.over||r.gap>0.005));
+ let rows=R.map(r=>({...r,dim:r.L*1000+r.H}));
+ const mt=PRICE_TIERS('mylar').map(t=>({t,f:FM.find(x=>x.t==t.t&&x.th==t.th&&Math.abs(x.L-t.L)<1.5&&Math.abs(x.H-t.H)<1.5&&Math.abs(x.G-t.G)<1.5)})).filter(x=>x.f&&x.f.rmb[x.t.q]==null);
+ if(mt.length){const group=r=>r.ref+'|'+r.t+'|'+r.m,order=new Map();rows.forEach(r=>{if(!order.has(group(r)))order.set(group(r),order.size)});
+  mt.forEach(({t,f})=>{if(rows.some(r=>r.ref==f.ref&&r.t==f.t&&r.m==f.m&&r.q==t.q))return;const rmb=llq(f.rmb,t.q),mk=llq(f.mk,t.q);rows.push({ref:f.ref,t:f.t,m:f.m,L:f.L,H:f.H,G:f.G,th:f.th,q:t.q,rmb,mk,note:null,...model(rmb,mk,f.th,f.L,f.H,t.q,0,null,f.G,f.t),dim:f.L*1000+f.H,tier:true})});
+  rows.sort((a,b)=>(order.get(group(a))??1e9)-(order.get(group(b))??1e9)||a.q-b.q)}
+ rows=rows.filter(r=>(!CF.t||r.t==CF.t)&&(!CF.m||r.m==CF.m)&&(!CF.q||r.q==CF.q)&&(!CF.s||r.ref.toLowerCase().includes(CF.s.toLowerCase()))&&(!CF.over||r.gap>0.005));
  rows.sort((a,b)=>{const x=a[sort.k],y=b[sort.k];return(typeof x=='string'?x.localeCompare(y,'fr',{numeric:true}):x-y)*sort.d});
  $('cnt').textContent=rows.length+' lignes';
  const f={rmb:2,usine:3,w:1,tr:3,fx:3,cout:3,mk:2,price:2,ttc:2,total:0,margeEur:0};
- $('tw').innerHTML=`<table><thead><tr>${COLS.map(c=>`<th class="${c[2]||''}" tabindex="0" data-k="${c[0]}" aria-sort="${sort.k==c[0]?(sort.d>0?'ascending':'descending'):'none'}">${c[1]}</th>`).join('')}</tr></thead><tbody>${rows.map((r,ri)=>`<tr data-rk="${ri}" tabindex="0" role="button" aria-label="Ouvrir ${esc(r.ref)} dans le simulateur"><td>${esc(r.ref)}${EST.has(r.ref+'|'+r.q)?' <span class="chip wn" title="Prix usine incohérent dans le tarif, remplacé par une estimation à confirmer">estimé</span>':''}</td><td class="l">${esc(r.t)}</td><td class="l">${MAT[r.m]}</td><td>${r.L}×${r.H}${r.G?'+'+r.G:''}</td><td>${nf(r.q,0)}</td>${['rmb','usine','w','tr','fx','cout','mk','price'].map(k=>`<td${k=='price'?' style="font-weight:600"':''}>${nf(r[k],f[k])}</td>`).join('')}<td><span class="chip ${r.marge<.4?'wn':'ok'}">${pct(r.marge)}</span><span class="mb"><i style="width:${Math.min(100,r.marge*100*1.6)}%"></i></span></td><td><span class="chip ${r.gap>.1?'bd':r.gap>0.005?'wn':'ok'}">${r.gap>0?'+':''}${pct(r.gap,1)}</span></td><td>${nf(r.ttc)}</td><td>${nf(r.total,0)}</td><td>${nf(r.margeEur,0)}</td></tr>`).join('')}</tbody></table>`;
+ $('tw').innerHTML=`<table><thead><tr>${COLS.map(c=>`<th class="${c[2]||''}" tabindex="0" data-k="${c[0]}" aria-sort="${sort.k==c[0]?(sort.d>0?'ascending':'descending'):'none'}">${c[1]}</th>`).join('')}</tr></thead><tbody>${rows.map((r,ri)=>`<tr data-rk="${ri}" tabindex="0" role="button" aria-label="Ouvrir ${esc(r.ref)} dans le simulateur"><td>${esc(r.ref)}${EST.has(r.ref+'|'+r.q)?' <span class="chip wn" title="Prix usine incohérent dans le tarif, remplacé par une estimation à confirmer">estimé</span>':''}</td><td class="l">${esc(r.t)}</td><td class="l">${MAT[r.m]}</td><td>${r.L}×${r.H}${r.G?'+'+r.G:''}</td><td>${nf(r.q,0)}${r.tier?' <span class="chip">palier ajouté</span>':''}</td>${['rmb','usine','w','tr','fx','cout','mk','price'].map(k=>`<td${k=='price'?' style="font-weight:600"':''}>${nf(r[k],f[k])}</td>`).join('')}<td><span class="chip ${r.marge<.4?'wn':'ok'}">${pct(r.marge)}</span><span class="mb"><i style="width:${Math.min(100,r.marge*100*1.6)}%"></i></span></td><td><span class="chip ${r.gap>.1?'bd':r.gap>0.005?'wn':'ok'}">${r.gap>0?'+':''}${pct(r.gap,1)}</span></td><td>${nf(r.ttc)}</td><td>${nf(r.total,0)}</td><td>${nf(r.margeEur,0)}</td></tr>`).join('')}</tbody></table>`;
  catRows=rows}
 let catRows=[];
 document.addEventListener('input',e=>{const i=e.target.id;if(!i||!i.startsWith('f-'))return;if(i=='f-t')CF.t=e.target.value;if(i=='f-m')CF.m=e.target.value;if(i=='f-q')CF.q=e.target.value;if(i=='f-s')CF.s=e.target.value;if(i=='f-o')CF.over=!!e.target.value;catBody()});
@@ -1773,10 +1791,12 @@ let ZCF={sh:'',m:'vin',q:'',s:''},zsort={k:'ref',d:1},zcatRows=[];
 const ZCOLS=[['ref','Réf.','l'],['shn','Forme','l'],['mn','Matière','l'],['dim','Dimensions'],['q','Qté'],['A','Surface cm²'],['usine','Usine €'],['wg','Poids g'],['tr','Transport €'],['fx','Frais fixes €'],['cout','Coût de revient'],['mkt','Marché'],['price','Prix HT'],['marge','Marge'],['gap','Écart'],['ttc','Prix TTC'],['total','Total HT'],['margeEur','Marge €'],['perM2','€ / m²']];
 function zCat(){const o=(m,v,all)=>(all?'<option value="">Tous</option>':'')+Object.keys(m).map(k=>`<option value="${k}"${k==v?' selected':''}>${esc(m[k].n)}</option>`).join('');
  $('zp-cat').innerHTML=`<div class="pn"><div class="bar"><div class="fl"><label for="zf-sh">Forme</label><select id="zf-sh">${o(ZH.sh,ZCF.sh,1)}</select></div><div class="fl"><label for="zf-m">Matière</label><select id="zf-m">${o(ZH.pm,ZCF.m,0)}</select></div><div class="fl"><label for="zf-q">Quantité</label><select id="zf-q"><option value="">Toutes</option>${QZ.map(q=>`<option value="${q}"${ZCF.q==q?' selected':''}>${nf(q,0)}</option>`).join('')}</select></div><div class="fl"><label for="zf-s">Référence</label><input id="zf-s" type="search" placeholder="R50, C75…" value="${esc(ZCF.s)}"></div><button class="btn g" id="zcsv">Exporter en CSV</button><span class="note" id="zcnt"></span></div><p class="note" style="margin-bottom:10px">Finition mate, conditionnement à l'unité. Les finitions et le conditionnement se règlent dans le simulateur.</p><div class="tw" id="ztw"></div></div>`;zCatBody()}
-function zCatBody(){let rows=zrows(ZCF.m||'vin').map(r=>({...r,shn:ZH.sh[r.sh].n,mn:ZH.pm[r.mat].n,dim:r.sh=='rond'?'⌀'+r.w:r.w+'×'+r.h})).filter(r=>(!ZCF.sh||r.sh==ZCF.sh)&&(!ZCF.q||r.q==ZCF.q)&&(!ZCF.s||r.ref.toLowerCase().includes(ZCF.s.toLowerCase())));
+function zCatBody(){const zmat=ZCF.m||'vin',zt=PRICE_TIERS('stk').filter(t=>t.mat==zmat&&t.fin=='mat'&&t.cond=='unit'&&ZH.sh[t.sh]);
+ let rows=ZFM.flatMap(f=>{const extra=zt.filter(t=>t.sh==f.sh&&t.w==f.w&&t.h==f.h&&!QZ.includes(t.q)).map(t=>t.q);return [...new Set([...QZ,...extra])].sort((a,b)=>a-b).map(q=>({...zmodel({sh:f.sh,w:f.w,h:f.h,q,mat:zmat,fin:'mat',cond:'unit'}),...f,q,mat:zmat,tier:extra.includes(q)}))});
+ rows=rows.map(r=>({...r,shn:ZH.sh[r.sh].n,mn:ZH.pm[r.mat].n,dim:r.sh=='rond'?'⌀'+r.w:r.w+'×'+r.h})).filter(r=>(!ZCF.sh||r.sh==ZCF.sh)&&(!ZCF.q||r.q==ZCF.q)&&(!ZCF.s||r.ref.toLowerCase().includes(ZCF.s.toLowerCase())));
  rows.sort((a,b)=>{const x=a[zsort.k],y=b[zsort.k];if(x==null||y==null)return(x==null)-(y==null);return(typeof x=='string'?x.localeCompare(y,'fr',{numeric:true}):x-y)*zsort.d});$('zcnt').textContent=rows.length+' lignes';
  const f={usine:3,wg:2,tr:4,fx:4,cout:3,mkt:3,price:3,ttc:3,total:0,margeEur:0,perM2:0,A:1};
- $('ztw').innerHTML=`<table><thead><tr>${ZCOLS.map(c=>`<th class="${c[2]||''}" tabindex="0" data-zk2="${c[0]}" aria-sort="${zsort.k==c[0]?(zsort.d>0?'ascending':'descending'):'none'}">${c[1]}</th>`).join('')}</tr></thead><tbody>${rows.map((r,ri)=>`<tr data-zr="${ri}" tabindex="0" role="button" aria-label="Ouvrir ${esc(r.ref)} dans le simulateur"><td>${esc(r.ref)}</td><td class="l">${esc(r.shn)}</td><td class="l">${esc(r.mn)}</td><td>${esc(r.dim)}</td><td>${nf(r.q,0)}</td>${['A','usine','wg','tr','fx','cout','mkt','price'].map(k=>`<td${k=='price'?' style="font-weight:600"':''}>${r[k]==null||(!r.known&&(k=='usine'||k=='cout'))?'–':nf(r[k],f[k])}</td>`).join('')}<td>${r.known?`<span class="chip ${r.marge<.4?'wn':'ok'}">${pct(r.marge)}</span><span class="mb"><i style="width:${Math.min(100,r.marge*160)}%"></i></span>`:'–'}</td><td><span class="chip ${r.gap>.1?'bd':r.gap>.005?'wn':'ok'}">${r.gap>0?'+':''}${pct(r.gap,1)}</span></td><td>${nf(r.ttc,3)}</td><td>${nf(r.total,0)}</td><td>${r.known?nf(r.margeEur,0):'–'}</td><td>${nf(r.perM2,0)}</td></tr>`).join('')}</tbody></table>`;zcatRows=rows}
+ $('ztw').innerHTML=`<table><thead><tr>${ZCOLS.map(c=>`<th class="${c[2]||''}" tabindex="0" data-zk2="${c[0]}" aria-sort="${zsort.k==c[0]?(zsort.d>0?'ascending':'descending'):'none'}">${c[1]}</th>`).join('')}</tr></thead><tbody>${rows.map((r,ri)=>`<tr data-zr="${ri}" tabindex="0" role="button" aria-label="Ouvrir ${esc(r.ref)} dans le simulateur"><td>${esc(r.ref)}</td><td class="l">${esc(r.shn)}</td><td class="l">${esc(r.mn)}</td><td>${esc(r.dim)}</td><td>${nf(r.q,0)}${r.tier?' <span class="chip">palier ajouté</span>':''}</td>${['A','usine','wg','tr','fx','cout','mkt','price'].map(k=>`<td${k=='price'?' style="font-weight:600"':''}>${r[k]==null||(!r.known&&(k=='usine'||k=='cout'))?'–':nf(r[k],f[k])}</td>`).join('')}<td>${r.known?`<span class="chip ${r.marge<.4?'wn':'ok'}">${pct(r.marge)}</span><span class="mb"><i style="width:${Math.min(100,r.marge*160)}%"></i></span>`:'–'}</td><td><span class="chip ${r.gap>.1?'bd':r.gap>.005?'wn':'ok'}">${r.gap>0?'+':''}${pct(r.gap,1)}</span></td><td>${nf(r.ttc,3)}</td><td>${nf(r.total,0)}</td><td>${r.known?nf(r.margeEur,0):'–'}</td><td>${nf(r.perM2,0)}</td></tr>`).join('')}</tbody></table>`;zcatRows=rows}
 document.addEventListener('input',e=>{const i=e.target.id;if(!i||!i.startsWith('zf-'))return;if(i=='zf-sh')ZCF.sh=e.target.value;if(i=='zf-m')ZCF.m=e.target.value;if(i=='zf-q')ZCF.q=e.target.value;if(i=='zf-s')ZCF.s=e.target.value;zCatBody()});
 document.addEventListener('click',async e=>{const rk=e.target.closest('tr[data-zr]');if(rk&&zcatRows[+rk.dataset.zr]){const r=zcatRows[+rk.dataset.zr];ZS.sh=r.sh;ZS.w=r.w;ZS.h=r.h;ZS.q=r.q;ZS.mat=r.mat;zcur='sim';renderStk();scrollTo({top:0,behavior:'smooth'});return}
  const th=e.target.closest('th[data-zk2]');if(th){const k=th.dataset.zk2;zsort=zsort.k==k?{k,d:-zsort.d}:{k,d:1};zCatBody();return}
@@ -2021,9 +2041,9 @@ let GCF={v:'',q:''},gsort={k:'v',d:1},gcatRows=[];
 const GCOLS=[['vn','Variante','l'],['q','Qté'],['price','Prix HT'],['remise','Remise'],['cost','Coût usine €'],['tr','Transport €'],['rendu','Prix rendu'],['marge','Marge'],['gap','Écart marché'],['ttc','Prix TTC'],['total','Total HT'],['margeEur','Marge €']];
 function gCat(){const h=gH();$('gp-cat').innerHTML=`<div class="pn"><div class="bar"><div class="fl"><label for="gf-v">Variante</label><select id="gf-v"><option value="">Toutes</option>${h.vars.map(x=>`<option value="${esc(x.id)}"${GCF.v==x.id?' selected':''}>${esc(x.n)}</option>`).join('')}</select></div><div class="fl"><label for="gf-q">Quantité</label><select id="gf-q"><option value="">Toutes</option>${gqs().map(q=>`<option value="${q}"${GCF.q==q?' selected':''}>${nf(q,0)}</option>`).join('')}</select></div><button class="btn g" id="gcsv">Exporter en CSV</button><span class="note" id="gcnt"></span></div><p class="note" style="margin-bottom:10px">Les paliers vont de 100 à 10 000 pièces, plus ta quantité de référence (${nf(h.q0,0)}). Prix départ usine.</p><div class="tw" id="gtw"></div></div>`;gCatBody()}
 const gqs=()=>[...new Set([...GQ,gH().q0])].sort((a,b)=>a-b);
-function gCatBody(){const h=gH();let rows=[];h.vars.forEach(v=>gqs().forEach(q=>{const r=gmodel({q,v:v.id},h),g=ggap(GP,q,v.id,h);rows.push({...r,vid:v.id,vn:v.n,gap:g.near?g.g:null,ref:q==h.q0})}));
+function gCatBody(){const h=gH(),gt=PRICE_TIERS(GP);let rows=[];h.vars.forEach(v=>{const extra=gt.filter(t=>t.v==v.id&&!gqs().includes(t.q)).map(t=>t.q);[...new Set([...gqs(),...extra])].sort((a,b)=>a-b).forEach(q=>{const r=gmodel({q,v:v.id},h),g=ggap(GP,q,v.id,h);rows.push({...r,vid:v.id,vn:v.n,gap:g.near?g.g:null,ref:q==h.q0,tier:extra.includes(q)})})});
  rows=rows.filter(r=>(!GCF.v||r.vid==GCF.v)&&(!GCF.q||r.q==GCF.q));rows.sort((a,b)=>{const x=a[gsort.k],y=b[gsort.k];if(x==null||y==null)return(x==null)-(y==null);return(typeof x=='string'?x.localeCompare(y,'fr',{numeric:true}):x-y)*gsort.d});$('gcnt').textContent=rows.length+' lignes';
- $('gtw').innerHTML=`<table><thead><tr>${GCOLS.map(c=>`<th class="${c[2]||''}" tabindex="0" data-gk2="${c[0]}" aria-sort="${gsort.k==c[0]?(gsort.d>0?'ascending':'descending'):'none'}">${c[1]}</th>`).join('')}</tr></thead><tbody>${rows.map((r,i)=>`<tr data-gr="${i}" tabindex="0" role="button"><td class="l">${esc(r.vn)}${r.ref?' <span class="chip">référence</span>':''}</td><td>${nf(r.q,0)}</td><td style="font-weight:600">${nf(r.price,3)}</td><td>${r.q<=100?'–':'−'+pct(r.remise,0)}</td><td>${r.known?nf(r.cost,3):'–'}</td><td>${nf(r.tr,3)}</td><td>${nf(r.rendu,3)}</td><td>${r.known?`<span class="chip ${r.marge<h.mS?'wn':'ok'}">${pct(r.marge)}</span>`:'–'}</td><td>${r.gap==null?'–':`<span class="chip ${r.gap>.12?'bd':r.gap>.03?'wn':'ok'}">${r.gap>0?'+':''}${pct(r.gap,1)}</span>`}</td><td>${nf(r.ttc,3)}</td><td>${nf(r.total,0)}</td><td>${r.known?nf(r.margeEur,0):'–'}</td></tr>`).join('')}</tbody></table>`;gcatRows=rows}
+ $('gtw').innerHTML=`<table><thead><tr>${GCOLS.map(c=>`<th class="${c[2]||''}" tabindex="0" data-gk2="${c[0]}" aria-sort="${gsort.k==c[0]?(gsort.d>0?'ascending':'descending'):'none'}">${c[1]}</th>`).join('')}</tr></thead><tbody>${rows.map((r,i)=>`<tr data-gr="${i}" tabindex="0" role="button"><td class="l">${esc(r.vn)}${r.ref?' <span class="chip">référence</span>':''}</td><td>${nf(r.q,0)}${r.tier?' <span class="chip">palier ajouté</span>':''}</td><td style="font-weight:600">${nf(r.price,3)}</td><td>${r.q<=100?'–':'−'+pct(r.remise,0)}</td><td>${r.known?nf(r.cost,3):'–'}</td><td>${nf(r.tr,3)}</td><td>${nf(r.rendu,3)}</td><td>${r.known?`<span class="chip ${r.marge<h.mS?'wn':'ok'}">${pct(r.marge)}</span>`:'–'}</td><td>${r.gap==null?'–':`<span class="chip ${r.gap>.12?'bd':r.gap>.03?'wn':'ok'}">${r.gap>0?'+':''}${pct(r.gap,1)}</span>`}</td><td>${nf(r.ttc,3)}</td><td>${nf(r.total,0)}</td><td>${r.known?nf(r.margeEur,0):'–'}</td></tr>`).join('')}</tbody></table>`;gcatRows=rows}
 document.addEventListener('input',e=>{if(view!='g')return;const i=e.target.id;if(i=='gf-v'){GCF.v=e.target.value;gCatBody()}else if(i=='gf-q'){GCF.q=e.target.value;gCatBody()}});
 document.addEventListener('click',async e=>{if(view!='g')return;const rk=e.target.closest('tr[data-gr]');if(rk&&gcatRows[+rk.dataset.gr]){const r=gcatRows[+rk.dataset.gr];GS.v=r.vid;GS.q=r.q;gcur='sim';renderG();scrollTo({top:0,behavior:'smooth'});return}
  const th=e.target.closest('th[data-gk2]');if(th){const k=th.dataset.gk2;gsort=gsort.k==k?{k,d:-gsort.d}:{k,d:1};gCatBody();return}
@@ -2905,8 +2925,14 @@ function watchMylarModel(H,rmb,mk,th,L,Hh,q,rateOverride,mode,G,ty){mk=mk*MKF;
 // Couche explicite de prix fixes : les formules natives restent le calcul de base.
 function createPriceRules(){
  const round=n=>Math.round((n+Number.EPSILON)*1000)/1000;
+ const QPOS={mylar:6,stk:4};
+ const qIndex=product=>QPOS[product]??2;
  const key=(product,c)=>JSON.stringify(product==='mylar'?['mylar',c.t,Number(c.th),Number(c.L),Number(c.H),Number(c.G||0),Number(c.q)]:product==='stk'?['stk',c.sh,Number(c.w),Number(c.sh==='rond'?c.w:c.h),Number(c.q),c.mat||'vin',c.fin||'mat',c.cond||'unit']:[product,c.v,Number(c.q)]);
  const validPrice=p=>typeof p==='number'&&Number.isFinite(p)&&p>=.001&&p<=100000;
+ const validQuantity=q=>Number.isInteger(q)&&q>=1&&q<=1e7;
+ // Série d'un palier : la clé sans sa quantité (même variante, même format et même configuration).
+ function split(product,k){try{const a=JSON.parse(k);if(!Array.isArray(a)||a[0]!==product)return null;const i=qIndex(product),q=a[i];if(!validQuantity(q))return null;const s=a.slice();s[i]=null;return {series:JSON.stringify(s),q}}catch{return null}}
+ function withQuantity(product,k,q){const a=JSON.parse(k);a[qIndex(product)]=q;return JSON.stringify(a)}
  function apply(result,price,vat){
   if(!validPrice(price))return result;
   const value=Math.max(round(price),Math.ceil(((result.floor||0)-1e-12)*1000)/1000),cost=result.known===false?null:result.cout??result.cb??null;
@@ -2915,45 +2941,123 @@ function createPriceRules(){
    ...(result.remise!=null?{remise:1-value/(result.price/(1-result.remise))}:{}),
    ...(result.perM2!=null?{perM2:value*10000/result.A}:{}),marge:cost==null?null:(value-cost)/value,margeEur:cost==null?null:(value-cost)*result.q};
  }
+ // Prix fixé exact → appliqué tel quel. Sinon, coefficient (prix fixé / formule) interpolé linéairement en log(quantité)
+ // entre les paliers fixés voisins de la même série ; hors bornes, coefficient du palier le plus proche ; aucun palier → formule.
+ // nativeAt(q) renvoie le prix de la formule native à la quantité q (null si non calculable).
+ function resolve(product,rules,k,result,nativeAt,vat){
+  const exact=rules?rules[k]:undefined;if(validPrice(exact))return apply(result,exact,vat);
+  const me=split(product,k);if(!me||!rules||typeof nativeAt!=='function')return result;
+  const points=[];
+  for(const [rk,p] of Object.entries(rules)){
+   if(!validPrice(p))continue;const other=split(product,rk);if(!other||other.series!==me.series||other.q===me.q)continue;
+   let base=null;try{base=nativeAt(other.q)}catch{base=null}
+   if(!(typeof base==='number'&&Number.isFinite(base)&&base>0))continue;
+   points.push({q:other.q,c:p/base});
+  }
+  if(!points.length)return result;
+  points.sort((a,b)=>a.q-b.q);
+  let c;
+  if(me.q<=points[0].q)c=points[0].c;else if(me.q>=points[points.length-1].q)c=points[points.length-1].c;
+  else{const i=points.findIndex(x=>x.q>=me.q),a=points[i-1],b=points[i],r=(Math.log(me.q)-Math.log(a.q))/(Math.log(b.q)-Math.log(a.q));c=a.c+(b.c-a.c)*r}
+  return {...apply(result,result.price*c,vat),interpolated:true,coefficient:c};
+ }
+ const validKeyFor=product=>k=>{try{const a=JSON.parse(k);return k.length<=400&&Array.isArray(a)&&a[0]===product&&a.every(v=>typeof v==='string'||typeof v==='number'&&Number.isFinite(v))}catch{return false}};
+ function validTier(product,t){if(!t||typeof t!=='object'||typeof t.key!=='string'||!validKeyFor(product)(t.key)||!validQuantity(t.q))return false;const s=split(product,t.key);return !!s&&s.q===t.q}
+ const validTierList=(product,list)=>Array.isArray(list)&&list.length<=2000&&list.every(t=>validTier(product,t))&&new Set(list.map(t=>t.key)).size===list.length;
  function validDocument(product,doc){
   if(!doc||doc.schema!==1||doc.scope!=='default'||!doc.rules||typeof doc.rules!=='object'||Array.isArray(doc.rules)||Object.keys(doc.rules).length>2000||!Array.isArray(doc.history)||doc.history.length>12)return false;
-  const validKey=k=>{try{const a=JSON.parse(k);return k.length<=400&&Array.isArray(a)&&a[0]===product&&a.every(v=>typeof v==='string'||typeof v==='number'&&Number.isFinite(v))}catch{return false}};
+  const validKey=validKeyFor(product);
   if(!Object.entries(doc.rules).every(([k,p])=>validKey(k)&&validPrice(p)))return false;
-  return doc.history.every(h=>h&&typeof h.at==='string'&&typeof h.label==='string'&&h.label.length<200&&Array.isArray(h.changes)&&h.changes.length<=2000&&h.changes.every(c=>validKey(c.key)&&(c.before===null||validPrice(c.before))&&(c.after===null||validPrice(c.after))));
+  if(doc.tiers!==undefined&&!validTierList(product,doc.tiers))return false;// anciens documents sans paliers : toujours valides
+  return doc.history.every(h=>h&&typeof h.at==='string'&&typeof h.label==='string'&&h.label.length<200&&Array.isArray(h.changes)&&h.changes.length<=2000&&h.changes.every(c=>validKey(c.key)&&(c.before===null||validPrice(c.before))&&(c.after===null||validPrice(c.after)))&&
+   (h.tiers===undefined||(h.tiers&&typeof h.tiers==='object'&&!Array.isArray(h.tiers)&&['added','removed'].every(f=>h.tiers[f]===undefined||validTierList(product,h.tiers[f])))));
  }
- function change(document,changes,label,now=new Date()){
+ const tierOrder=product=>(a,b)=>{const x=split(product,a.key),y=split(product,b.key);return x.series<y.series?-1:x.series>y.series?1:x.q-y.q};
+ // Nouvelle version du document : prix modifiés (null = retour à la formule) et, si fournie, nouvelle liste de paliers.
+ function change(document,changes,label,now=new Date(),tiers,product){
   const doc=JSON.parse(JSON.stringify(document)),diff=[];
   for(const [key,after]of Object.entries(changes)){const before=doc.rules[key]??null;if(before===after)continue;if(after===null)delete doc.rules[key];else {if(!validPrice(after))throw new Error('Prix invalide');doc.rules[key]=round(after)}diff.push({key,before,after})}
-  if(!diff.length)return doc;
-  doc.history.push({at:now.toISOString(),label,changes:diff});while(doc.history.length>12||JSON.stringify(doc.history).length>300000)doc.history.shift();return doc;
+  let tierDiff=null;
+  if(Array.isArray(tiers)){
+   const before=Array.isArray(doc.tiers)?doc.tiers:[],beforeKeys=new Set(before.map(t=>t.key)),afterKeys=new Set(tiers.map(t=>t.key));
+   const added=tiers.filter(t=>!beforeKeys.has(t.key)).map(t=>({key:t.key,q:t.q})),removed=before.filter(t=>!afterKeys.has(t.key)).map(t=>({key:t.key,q:t.q}));
+   if(added.length||removed.length){tierDiff={added,removed};doc.tiers=tiers.map(t=>({key:t.key,q:t.q}));if(product&&doc.tiers.every(t=>split(product,t.key)))doc.tiers.sort(tierOrder(product))}
+  }
+  if(!diff.length&&!tierDiff)return doc;
+  doc.history.push({at:now.toISOString(),label,changes:diff,...(tierDiff?{tiers:tierDiff}:{})});while(doc.history.length>12||JSON.stringify(doc.history).length>300000)doc.history.shift();return doc;
  }
- return {key,apply,validPrice,validDocument,change,empty:()=>({schema:1,scope:'default',rules:{},history:[]})};
+ return {key,apply,resolve,split,withQuantity,validPrice,validQuantity,validTier,validDocument,change,empty:()=>({schema:1,scope:'default',rules:{},history:[],tiers:[]})};
 }
-
 const PRICE_TABLE_API=(function(){
- const rules=createPriceRules(),states=new Map(),drafts=new Map(),selections=new Map(),editing=new Set();let saving=false;
+ const rules=createPriceRules(),states=new Map(),drafts=new Map(),tierDrafts=new Map(),selections=new Map(),editing=new Set();let saving=false;
  const native={model,zmodel,gmodel};
  const current=()=>view==='mylar'?'mylar':view==='stk'?'stk':view==='g'?GP:null;
  const state=id=>{if(!states.has(id)){states.set(id,{data:rules.empty(),version:0,ready:false,error:''});load(id)}return states.get(id)};
  const clone=x=>JSON.parse(JSON.stringify(x));
+ // Bornes de quantité d’un palier : Mylar 200 à 5 000 (tarif usine), stickers à partir du minimum réglé, sinon 1 à 10 000 000.
+ const limits=id=>id==='mylar'?[200,5000]:id==='stk'?[Math.max(1,ZH&&ZH.minQ||1),1e7]:[1,1e7];
+ const savedTiers=id=>{const s=states.get(id);return s&&Array.isArray(s.data.tiers)?s.data.tiers:[]};
+ const tiers=id=>tierDrafts.has(id)?tierDrafts.get(id):savedTiers(id);
+ // Paliers personnalisés lus par les tableaux natifs : variante ou format reconstitués depuis la clé du document.
+ PRICE_TIERS=id=>tiers(id).map(t=>{try{const a=JSON.parse(t.key);if(a[0]!==id)return null;return id==='mylar'?{key:t.key,q:t.q,t:a[1],th:a[2],L:a[3],H:a[4],G:a[5]}:id==='stk'?{key:t.key,q:t.q,sh:a[1],w:a[2],h:a[3],mat:a[5],fin:a[6],cond:a[7]}:{key:t.key,q:t.q,v:a[1]}}catch{return null}}).filter(Boolean);
  function notify(text,error=false){const c=context();if(c){const p=c.panel.querySelector('.price-table-message');if(p){p.textContent=text;p.classList.toggle('price-error',error)}}}
- async function load(id){const s=states.get(id);try{const r=await fetch('/api/doc/cfg_price_'+id,{cache:'no-store'});if(!r.ok)throw new Error('HTTP '+r.status);const d=await r.json();if(d.data&&!rules.validDocument(id,d.data))throw new Error('Document invalide');s.data=d.data||rules.empty();s.version=d.version;s.ready=true;s.error='';if(current()===id){recalc();render()}}catch(e){s.error='Sauvegarde indisponible : '+e.message;if(current()===id)decorate()}}
- function fixed(id,key,result){const s=states.get(id);return s?rules.apply(result,s.data.rules[key],H.vat):result}
- model=function(...a){const r=native.model(...a);return fixed('mylar',rules.key('mylar',{t:a[9],th:a[2],L:a[3],H:a[4],G:a[8],q:a[5]}),r)};
- zmodel=function(p){return fixed('stk',rules.key('stk',p),native.zmodel(p))};
- gmodel=function(p,h){h=h||gH();const id=Object.keys(GH).find(id=>GH[id]===h)||(h===gH()?GP:null),r=native.gmodel(p,h);if(!id)return r;const vid=gvar(h,p.v).id,result=fixed(id,rules.key(id,{v:vid,q:p.q}),r);if(Object.keys(states.get(id)?.data.rules||{}).length){const reference=fixed(id,rules.key(id,{v:vid,q:100}),native.gmodel({...p,q:100},h));return {...result,remise:1-result.price/reference.price}}return result};
+ async function load(id){const s=states.get(id);try{const r=await fetch('/api/doc/cfg_price_'+id,{cache:'no-store'});if(!r.ok)throw new Error('HTTP '+r.status);const d=await r.json();if(d.data&&!rules.validDocument(id,d.data))throw new Error('Document invalide');s.data=d.data||rules.empty();if(!Array.isArray(s.data.tiers))s.data.tiers=[];s.version=d.version;s.ready=true;s.error='';if(current()===id){recalc();render()}}catch(e){s.error='Sauvegarde indisponible : '+e.message;if(current()===id)decorate()}}
+ // Prix fixé exact, sinon interpolation entre les prix fixés voisins de la même série (formule native × coefficient en log(quantité)).
+ function resolved(id,key,result,nativeAt){const s=states.get(id);return s?rules.resolve(id,s.data.rules,key,result,nativeAt,H.vat):result}
+ const mylarFormat=(ty,th,L,Hh,G)=>FM.find(x=>x.t==ty&&x.th==th&&Math.abs(x.L-L)<1.5&&Math.abs(x.H-Hh)<1.5&&Math.abs(x.G-(G||0))<1.5);
+ model=function(...a){const [rmb,mk,th,L,Hh,q,ro,mode,G,ty]=a,r=native.model(...a),f=mylarFormat(ty,th,L,Hh,G);return resolved('mylar',rules.key('mylar',{t:ty,th,L,H:Hh,G,q}),r,qn=>f?native.model(llq(f.rmb,qn),llq(f.mk,qn),th,L,Hh,qn,ro,mode,G,ty).price:null)};
+ zmodel=function(p){return resolved('stk',rules.key('stk',p),native.zmodel(p),qn=>native.zmodel({...p,q:qn}).price)};
+ gmodel=function(p,h){h=h||gH();const id=Object.keys(GH).find(id=>GH[id]===h)||(h===gH()?GP:null),r=native.gmodel(p,h);if(!id)return r;const vid=gvar(h,p.v).id,nativeAt=qn=>native.gmodel({...p,q:qn},h).price,result=resolved(id,rules.key(id,{v:vid,q:p.q}),r,nativeAt);if(Object.keys(states.get(id)?.data.rules||{}).length){const reference=resolved(id,rules.key(id,{v:vid,q:100}),native.gmodel({...p,q:100},h),nativeAt);return {...result,remise:1-result.price/reference.price}}return result};
  for(const name of Object.keys(native))Object.defineProperty(name==='model'?model:name==='zmodel'?zmodel:gmodel,'nativePricing',{value:native[name]});
  function context(){
   const id=current();if(!id)return null;const mylar=id==='mylar',stk=id==='stk',app=$(mylar?'app-mylar':stk?'app-stk':'app-g'),tab=mylar?cur:stk?zcur:gcur;if(tab!=='cat')return null;
   const host=$(mylar?'tw':stk?'ztw':'gtw');if(!host)return null;
   const rows=mylar?catRows:stk?zcatRows:gcatRows,columns=mylar?COLS:stk?ZCOLS:GCOLS;
-  return{id,mylar,stk,app,host,panel:host.parentElement,rows,columns,s:state(id),draft:drafts.get(id)||new Map(),selected:selections.get(id)||new Set()};
+  return{id,mylar,stk,app,host,panel:host.parentElement,rows,columns,s:state(id),draft:drafts.get(id)||new Map(),selected:selections.get(id)||new Set(),tiers:tiers(id)};
  }
  function key(c,r){return rules.key(c.id,c.mylar?r:c.stk?{...r,mat:r.mat,fin:'mat',cond:'unit'}:{v:r.vid,q:r.q})}
  function parse(value){const s=String(value).trim().replace(/\s/g,'').replace(',','.');return /^-?\d+(\.\d+)?$/.test(s)?Number(s):NaN}
- function store(c){drafts.set(c.id,c.draft);selections.set(c.id,c.selected);try{localStorage.setItem('sklubs_price_draft_'+c.id,JSON.stringify({version:c.s.version,values:[...c.draft].filter(([,v])=>v===null||rules.validPrice(v))}))}catch{}}
- function clearDraft(id){drafts.delete(id);try{localStorage.removeItem('sklubs_price_draft_'+id)}catch{}}
+ const parseQuantity=value=>{const s=String(value).trim().replace(/[\s ]/g,'');return /^\d+$/.test(s)?Number(s):NaN};
+ function tierDelta(c){const saved=new Set(savedTiers(c.id).map(t=>t.key)),now=new Set(c.tiers.map(t=>t.key));return [...now].filter(k=>!saved.has(k)).length+[...saved].filter(k=>!now.has(k)).length}
+ function store(c){drafts.set(c.id,c.draft);tierDrafts.set(c.id,c.tiers);selections.set(c.id,c.selected);try{localStorage.setItem('sklubs_price_draft_'+c.id,JSON.stringify({version:c.s.version,values:[...c.draft].filter(([,v])=>v===null||rules.validPrice(v)),tiers:c.tiers}))}catch{}}
+ function clearDraft(id){drafts.delete(id);tierDrafts.delete(id);try{localStorage.removeItem('sklubs_price_draft_'+id)}catch{}}
  function original(c,r){return c.mylar?native.model(r.rmb,r.mk,r.th,r.L,r.H,r.q,0,null,r.G||0,r.t):c.stk?native.zmodel({sh:r.sh,w:r.w,h:r.h,q:r.q,mat:r.mat,fin:'mat',cond:'unit'}):native.gmodel({q:r.q,v:r.vid},GH[c.id])}
+ // Quantité déjà présente dans la grille standard de cette série (quantités de la liste, de référence ou du tarif usine).
+ function standard(c,k,q){let a;try{a=JSON.parse(k)}catch{return false}if(c.mylar){const f=mylarFormat(a[1],a[2],a[3],a[4],a[5]);return !!f&&f.rmb[q]!=null}return c.stk?QZ.includes(q):gqs().includes(q)}
+ function tierTargets(c){
+  if(c.mylar)return FM.map((f,i)=>({value:String(i),label:f.ref+' · '+f.t+' · '+f.L+'×'+f.H+(f.G?'+'+f.G:'')+' mm · '+(MAT[f.m]||f.m)}));
+  if(c.stk)return ZFM.map(f=>({value:f.ref,label:f.ref+' · '+ZH.sh[f.sh].n+' '+(f.sh=='rond'?'⌀'+f.w:f.w+'×'+f.h)+' mm'}));
+  return gH().vars.map(v=>({value:v.id,label:v.n}));
+ }
+ function tierHint(c){const [lo,hi]=limits(c.id);return 'Quantité entière entre '+nf(lo,0)+' et '+nf(hi,0)+(c.stk?' · '+ZH.pm[ZCF.m||'vin'].n+', finition mate, à l’unité (comme le tableau)':c.mylar?' · formats du tarif usine':'')+'. Sans prix, le palier suit la formule ou l’interpolation entre vos prix fixés.'}
+ function showTier(c){if(c.mylar)CF.q='';else if(c.stk)ZCF.q='';else GCF.q=''}
+ function addTier(){
+  const c=context();if(!c||!c.s.ready)return;const [lo,hi]=limits(c.id),q=parseQuantity(c.panel.querySelector('[data-tier-q]').value),rawPrice=c.panel.querySelector('[data-tier-price]').value,price=rawPrice.trim()===''?null:parse(rawPrice);
+  if(!Number.isInteger(q)||q<lo||q>hi){notify('Quantité du palier : entier entre '+nf(lo,0)+' et '+nf(hi,0)+'.',true);return}
+  if(price!==null&&!rules.validPrice(price)){notify('Prix HT du palier : entre 0,001 et 100 000 € (virgule ou point, 3 décimales).',true);return}
+  const target=c.panel.querySelector('[data-tier-target]').value;let cfg;
+  if(c.mylar){const f=FM[Number(target)];if(!f){notify('Choisissez un format.',true);return}cfg={t:f.t,th:f.th,L:f.L,H:f.H,G:f.G,q}}
+  else if(c.stk){const f=ZFM.find(x=>x.ref===target);if(!f){notify('Choisissez un format.',true);return}cfg={sh:f.sh,w:f.w,h:f.h,q,mat:ZCF.m||'vin',fin:'mat',cond:'unit'}}
+  else{if(!gH().vars.find(v=>v.id===target)){notify('Choisissez une variante.',true);return}cfg={v:target,q}}
+  const k=rules.key(c.id,cfg);
+  if(c.tiers.some(t=>t.key===k)||standard(c,k,q)){notify('Cette quantité existe déjà pour cette variante ou ce format : modifiez son prix directement dans la ligne.',true);return}
+  c.tiers=[...c.tiers,{key:k,q}];if(price!==null)c.draft.set(k,Math.round(price*1000)/1000);if(!c.mylar&&!c.stk&&GCF.v&&GCF.v!==target)GCF.v='';showTier(c);store(c);render();
+  const active=context();if(active){active.panel.querySelector('[data-tier-q]').value='';active.panel.querySelector('[data-tier-price]').value=''}
+  notify('Palier '+nf(q,0)+' ajouté dans le tableau'+(price!==null?' avec son prix':'')+'. Enregistrez pour le partager avec le CRM.');
+ }
+ function moveTier(k,raw){
+  const c=context();if(!c)return;const t=c.tiers.find(x=>x.key===k);if(!t)return;const [lo,hi]=limits(c.id),q=parseQuantity(raw);
+  if(!Number.isInteger(q)||q<lo||q>hi){notify('Quantité du palier : entier entre '+nf(lo,0)+' et '+nf(hi,0)+'.',true);decorate();return}
+  if(q===t.q)return;const nk=rules.withQuantity(c.id,k,q);
+  if(c.tiers.some(x=>x.key===nk)||standard(c,nk,q)){notify('Cette quantité existe déjà pour cette variante ou ce format.',true);decorate();return}
+  const price=c.draft.has(k)?c.draft.get(k):(c.s.data.rules[k]??null);
+  if(c.s.data.rules[k]!=null)c.draft.set(k,null);else c.draft.delete(k);
+  c.tiers=c.tiers.map(x=>x.key===k?{key:nk,q}:x);if(price!=null)c.draft.set(nk,price);c.selected.delete(k);showTier(c);store(c);render();notify('Palier déplacé à '+nf(q,0)+' pièces. Enregistrez pour confirmer.');
+ }
+ function removeTier(k){
+  const c=context();if(!c)return;if(!c.tiers.some(x=>x.key===k))return;const t=c.tiers.find(x=>x.key===k);
+  c.tiers=c.tiers.filter(x=>x.key!==k);if(c.s.data.rules[k]!=null)c.draft.set(k,null);else c.draft.delete(k);c.selected.delete(k);store(c);render();notify('Palier '+nf(t.q,0)+' retiré de l’aperçu. Enregistrez pour confirmer ; « Annuler l’aperçu » le rétablit.');
+ }
  function updatePreview(c){
   let changed=0,invalid=0;
   c.host.querySelectorAll('tbody tr').forEach((tr,i)=>{
@@ -2964,31 +3068,37 @@ const PRICE_TABLE_API=(function(){
     const margin=tr.querySelector('[data-price-margin]');margin.textContent=result?(result.marge==null?'Marge inconnue':pct(result.marge,1)):'';tr.classList.add('price-pending');
     if(result)for(const field of ['total','ttc','rendu','marge']){const td=tr.querySelector('[data-price-field="'+field+'"]');if(!td)continue;td.dataset.priceOriginal=td.innerHTML;const format=v=>v==null?'Inconnue':field==='marge'?pct(v,1):eur(v,field==='total'?2:3);td.innerHTML='<span class="price-before">'+format(r[field])+'</span><strong class="price-after">'+format(result[field])+'</strong>'}
    }else{preview.textContent='';tr.querySelector('[data-price-margin]').textContent='';tr.classList.remove('price-pending')}
+   const reset=tr.querySelector('[data-price-reset]');if(reset)reset.hidden=!(r.manual&&!r.interpolated&&c.s.data.rules[k]!=null)||value===null;
   });
-  const visible=new Set(c.rows.map(r=>key(c,r))),hidden=[...c.draft.keys()].filter(k=>!visible.has(k)).length;
-  const total=c.draft.size;c.panel.querySelector('[data-price-save]').disabled=saving||!c.s.ready||!total||hidden>0||invalid>0||[...c.draft.values()].some(v=>v!==null&&!rules.validPrice(v));
+  // Un prix remis à la formule sur un palier supprimé n’a plus de ligne : il n’est pas « hors filtre ».
+  const visible=new Set(c.rows.map(r=>key(c,r))),removed=new Set(savedTiers(c.id).filter(t=>!c.tiers.some(x=>x.key===t.key)).map(t=>t.key)),hidden=[...c.draft.keys()].filter(k=>!visible.has(k)&&!(c.draft.get(k)===null&&removed.has(k))).length;
+  const delta=tierDelta(c),total=c.draft.size+delta;c.panel.querySelector('[data-price-save]').disabled=saving||!c.s.ready||!total||hidden>0||invalid>0||[...c.draft.values()].some(v=>v!==null&&!rules.validPrice(v));
   c.panel.querySelector('[data-price-cancel]').disabled=!total||saving;
-  c.panel.querySelector('[data-price-selection]').textContent=c.selected.size+' sélectionnée(s) · '+total+' modification(s) en attente'+(hidden?' · '+hidden+' hors filtre : réaffichez-les avant enregistrement':'');
+  c.panel.querySelector('[data-price-selection]').textContent=c.selected.size+' sélectionnée(s) · '+c.draft.size+' prix en attente'+(delta?' · '+delta+' palier(s) ajouté(s) ou retiré(s)':'')+(hidden?' · '+hidden+' hors filtre : réaffichez-les avant enregistrement':'');
  }
  function decorate(){
   const c=context();if(!c)return;
   // Les cases et l’édition apparaissent dans la vue complète existante, sans remplacer ses colonnes.
   let bar=c.panel.querySelector('.price-table-tools');
-  if(!bar){bar=document.createElement('section');bar.className='price-table-tools';bar.innerHTML='<div class="price-table-heading"><strong>Modifier les prix dans le tableau</strong><span data-price-selection></span></div><div class="price-table-actions"><label><input type="checkbox" data-price-all> Toutes les lignes affichées</label><select data-price-operation aria-label="Modification par lot"><option value="percent">Variation en %</option><option value="add">Ajouter / retirer en €</option><option value="fixed">Fixer un prix HT en €</option><option value="reset">Retour au calcul d’origine</option></select><input data-price-bulk inputmode="decimal" aria-label="Valeur de modification par lot" placeholder="Ex. −5"><button type="button" class="btn g" data-price-preview>Préparer la sélection</button></div><p class="price-table-caption">Modifiez une cellule ou sélectionnez plusieurs lignes. Les autres produits restent inchangés. Les prix préparés restent en aperçu jusqu’à votre enregistrement.</p><div class="price-table-confirm"><button type="button" class="btn g" data-price-history>Annuler le dernier lot enregistré</button><button type="button" class="btn g" data-price-cancel>Annuler l’aperçu</button><button type="button" class="btn" data-price-save>Enregistrer les modifications</button></div><p class="price-table-message" role="status"></p>';c.host.before(bar);
+  if(!bar){bar=document.createElement('section');bar.className='price-table-tools';bar.innerHTML='<div class="price-table-heading"><strong>Modifier les prix dans le tableau</strong><span data-price-selection></span></div><div class="price-table-actions"><label><input type="checkbox" data-price-all> Toutes les lignes affichées</label><select data-price-operation aria-label="Modification par lot"><option value="percent">Variation en %</option><option value="add">Ajouter / retirer en €</option><option value="fixed">Fixer un prix HT en €</option><option value="reset">Retour au calcul d’origine</option></select><input data-price-bulk inputmode="decimal" aria-label="Valeur de modification par lot" placeholder="Ex. −5"><button type="button" class="btn g" data-price-preview>Préparer la sélection</button></div><div class="price-tier-form"><strong>Ajouter un palier</strong><select data-tier-target aria-label="Variante ou format du nouveau palier"></select><input data-tier-q inputmode="numeric" aria-label="Quantité du nouveau palier" placeholder="Quantité"><input data-tier-price inputmode="decimal" aria-label="Prix unitaire HT du nouveau palier, facultatif" placeholder="Prix HT (facultatif)"><button type="button" class="btn g" data-tier-add>Ajouter un palier</button><span class="price-table-caption" data-tier-hint></span></div><p class="price-table-caption">Modifiez une cellule, sélectionnez plusieurs lignes ou ajoutez un palier à la quantité de votre choix. Entre deux prix fixés, les autres quantités suivent la formule ajustée. Les autres produits restent inchangés ; les prix préparés restent en aperçu jusqu’à votre enregistrement.</p><div class="price-table-confirm"><button type="button" class="btn g" data-price-history>Annuler le dernier lot enregistré</button><button type="button" class="btn g" data-price-cancel>Annuler l’aperçu</button><button type="button" class="btn" data-price-save>Enregistrer les modifications</button></div><p class="price-table-message" role="status"></p>';c.host.before(bar);
    const toggle=document.createElement('button');toggle.type='button';toggle.className='btn g';toggle.dataset.priceToggle='';bar.querySelector('.price-table-heading').append(toggle);
-   const recovery=document.createElement('button');recovery.type='button';recovery.className='btn g';recovery.dataset.priceRecover='';recovery.textContent='Restaurer un aperçu non enregistré';bar.querySelector('.price-table-heading').append(recovery);recovery.addEventListener('click',()=>{const active=context();try{const saved=JSON.parse(localStorage.getItem('sklubs_price_draft_'+c.id)||'null'),values=Object.fromEntries(saved?.values||[]);if(!rules.validDocument(c.id,{schema:1,scope:'default',rules:Object.fromEntries(Object.entries(values).filter(([,v])=>v!==null)),history:[]}))throw new Error('Aperçu invalide');active.draft=new Map(Object.entries(values));drafts.set(c.id,active.draft);editing.add(c.id);render();notify('Aperçu restauré. Vérifiez les prix actuels et les filtres avant d’enregistrer.')}catch{notify('Cet aperçu ne peut pas être restauré.',true)}});
+   const recovery=document.createElement('button');recovery.type='button';recovery.className='btn g';recovery.dataset.priceRecover='';recovery.textContent='Restaurer un aperçu non enregistré';bar.querySelector('.price-table-heading').append(recovery);recovery.addEventListener('click',()=>{const active=context();try{const saved=JSON.parse(localStorage.getItem('sklubs_price_draft_'+c.id)||'null'),values=Object.fromEntries(saved?.values||[]),list=Array.isArray(saved?.tiers)?saved.tiers:savedTiers(c.id);if(!rules.validDocument(c.id,{schema:1,scope:'default',rules:Object.fromEntries(Object.entries(values).filter(([,v])=>v!==null)),history:[],tiers:list}))throw new Error('Aperçu invalide');active.draft=new Map(Object.entries(values));active.tiers=list;drafts.set(c.id,active.draft);tierDrafts.set(c.id,list);editing.add(c.id);render();notify('Aperçu restauré. Vérifiez les prix actuels et les filtres avant d’enregistrer.')}catch{notify('Cet aperçu ne peut pas être restauré.',true)}});
    toggle.addEventListener('click',()=>{editing.has(c.id)?editing.delete(c.id):editing.add(c.id);render();const active=context();if(editing.has(c.id)){const filters=active?.panel.querySelector('.product-tariff-filters,#mylar-tariff-filters');if(filters)filters.open=false}});
-   bar.addEventListener('click',e=>{const target=e.target;if(target.closest('[data-price-preview]'))prepare();if(target.closest('[data-price-cancel]')){clearDraft(c.id);render()}if(target.closest('[data-price-save]'))save();if(target.closest('[data-price-history]'))undo()});
+   bar.addEventListener('click',e=>{const target=e.target;if(target.closest('[data-price-preview]'))prepare();if(target.closest('[data-price-cancel]')){clearDraft(c.id);render()}if(target.closest('[data-price-save]'))save();if(target.closest('[data-price-history]'))undo();if(target.closest('[data-tier-add]'))addTier()});
+   bar.querySelectorAll('[data-tier-q],[data-tier-price]').forEach(input=>input.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addTier()}}));
    bar.querySelector('[data-price-all]').addEventListener('change',e=>{const active=context();for(const r of active.rows){const k=key(active,r);if(e.target.checked)active.selected.add(k);else active.selected.delete(k)}store(active);decorate()});
   }
   bar.querySelector('[data-price-history]').disabled=!c.s.ready||!c.s.data.history.length||saving;
-  try{const saved=JSON.parse(localStorage.getItem('sklubs_price_draft_'+c.id)||'null');bar.querySelector('[data-price-recover]').hidden=!saved?.values?.length||c.draft.size>0}catch{bar.querySelector('[data-price-recover]').hidden=true}
+  try{const saved=JSON.parse(localStorage.getItem('sklubs_price_draft_'+c.id)||'null');bar.querySelector('[data-price-recover]').hidden=!(saved?.values?.length||saved?.tiers)||c.draft.size>0||tierDrafts.has(c.id)}catch{bar.querySelector('[data-price-recover]').hidden=true}
   const active=editing.has(c.id);bar.classList.toggle('price-editing',active);bar.querySelector('[data-price-toggle]').textContent=active?'Quitter la modification':'Modifier dans le tableau';
   c.panel.classList.toggle('price-table-editing',active);
   if(!active){updatePreview(c);return}
   c.host.hidden=false;const cards=c.panel.querySelector('.product-tariff-cards,.mylar-tariff-cards');if(cards)cards.hidden=true;
   c.panel.querySelectorAll('[data-product-view],[data-mylar-view]').forEach(b=>b.setAttribute('aria-pressed',String((b.dataset.productView||b.dataset.mylarView)==='table')));
   if(c.s.error)notify(c.s.error,true);
+  const select=bar.querySelector('[data-tier-target]'),targets=tierTargets(c),signature=c.id+'|'+targets.map(o=>o.value+'='+o.label).join('|');
+  if(select.dataset.signature!==signature){const was=select.value;select.innerHTML=targets.map(o=>'<option value="'+esc(o.value)+'">'+esc(o.label)+'</option>').join('');select.dataset.signature=signature;if(targets.some(o=>o.value===was))select.value=was;else if(!c.mylar&&!c.stk&&GCF.v&&targets.some(o=>o.value===GCF.v))select.value=GCF.v}
+  bar.querySelector('[data-tier-hint]').textContent=tierHint(c);bar.querySelectorAll('[data-tier-q],[data-tier-price],[data-tier-add],[data-tier-target]').forEach(el=>el.disabled=!c.s.ready||saving);
   const table=c.host.querySelector('table');if(!table)return;
   const head=table.querySelector('thead tr');if(!head.querySelector('[data-price-head]')){const price=head.children[c.columns.findIndex(col=>col[0]==='price')],quantity=head.children[c.columns.findIndex(col=>col[0]==='q')],th=document.createElement('th');th.dataset.priceHead='';th.textContent='Choisir';head.prepend(th);th.after(price);price.after(quantity);price.classList.add('price-sticky-heading')}
   c.host.querySelectorAll('tbody tr').forEach((tr,i)=>{
@@ -2997,8 +3107,15 @@ const PRICE_TABLE_API=(function(){
    cell.firstElementChild.checked=c.selected.has(k);
    const index=c.columns.findIndex(col=>col[0]==='price')+1,priceCell=tr.querySelector('[data-price-column]')||tr.children[index],quantityCell=tr.querySelector('[data-price-quantity]')||tr.children[c.columns.findIndex(col=>col[0]==='q')+1];if(!priceCell)return;
    priceCell.dataset.priceColumn='';quantityCell.dataset.priceQuantity='';cell.after(priceCell);priceCell.after(quantityCell);
-   if(!priceCell.querySelector('[data-price-cell]')){priceCell.innerHTML='<label class="price-inline-label"><span class="price-current">'+eur(r.price,3)+(r.manual?' · fixé':'')+'</span><input data-price-cell inputmode="decimal" autocomplete="off" aria-label="Nouveau prix HT ligne '+(i+1)+'"><span data-price-result></span><small data-price-margin></small></label>';priceCell.addEventListener('click',e=>e.stopPropagation());priceCell.addEventListener('keydown',e=>e.stopPropagation());priceCell.querySelector('input').addEventListener('input',e=>{const active=context(),v=parse(e.target.value);if(e.target.value.trim()==='')active.draft.delete(k);else active.draft.set(k,v);store(active);updatePreview(active)})}
+   if(!priceCell.querySelector('[data-price-cell]')){priceCell.innerHTML='<label class="price-inline-label"><span class="price-current">'+eur(r.price,3)+(r.interpolated?' · interpolé':r.manual?' · fixé':'')+'</span><input data-price-cell inputmode="decimal" autocomplete="off" aria-label="Nouveau prix HT ligne '+(i+1)+'"><span data-price-result></span><small data-price-margin></small><button type="button" class="price-reset" data-price-reset hidden>Revenir à la formule</button></label>';priceCell.addEventListener('click',e=>e.stopPropagation());priceCell.addEventListener('keydown',e=>e.stopPropagation());priceCell.querySelector('input').addEventListener('input',e=>{const active=context(),v=parse(e.target.value);if(e.target.value.trim()==='')active.draft.delete(k);else active.draft.set(k,v);store(active);updatePreview(active)});priceCell.querySelector('[data-price-reset]').addEventListener('click',()=>{const active=context();active.draft.set(k,null);store(active);decorate()})}
    const input=priceCell.querySelector('input');if(document.activeElement!==input)input.value=c.draft.has(k)&&c.draft.get(k)!==null?String(c.draft.get(k)) :'';input.placeholder=nf(r.price,3);input.disabled=!c.s.ready||saving;
+   if(r.tier&&!quantityCell.querySelector('[data-tier-cell]')){
+    quantityCell.innerHTML='<label class="price-inline-label price-tier-label"><span class="price-current">palier ajouté</span><input data-tier-cell inputmode="numeric" autocomplete="off" aria-label="Quantité du palier ligne '+(i+1)+'" value="'+r.q+'"><span class="price-tier-actions"><button type="button" data-tier-remove>Supprimer la ligne</button></span></label>';
+    quantityCell.addEventListener('click',e=>e.stopPropagation());quantityCell.addEventListener('keydown',e=>e.stopPropagation());
+    const qi=quantityCell.querySelector('input');qi.addEventListener('change',e=>moveTier(k,e.target.value));qi.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();e.target.blur()}});
+    quantityCell.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const actions=quantityCell.querySelector('.price-tier-actions');if('tierRemove'in b.dataset)actions.innerHTML='<span>Supprimer ce palier ?</span><button type="button" data-tier-confirm>Confirmer</button><button type="button" data-tier-keep>Garder</button>';else if('tierConfirm'in b.dataset)removeTier(k);else if('tierKeep'in b.dataset)actions.innerHTML='<button type="button" data-tier-remove>Supprimer la ligne</button>'});
+   }
+   if(r.tier){const qi=quantityCell.querySelector('[data-tier-cell]');if(qi){if(document.activeElement!==qi)qi.value=String(r.q);qi.disabled=!c.s.ready||saving;quantityCell.querySelectorAll('button').forEach(b=>b.disabled=!c.s.ready||saving)}}
    tr.removeAttribute('role');tr.removeAttribute('tabindex');
   });
   updatePreview(c);
@@ -3006,20 +3123,23 @@ const PRICE_TABLE_API=(function(){
  function prepare(){const c=context();if(!c||!c.s.ready)return;const mode=c.panel.querySelector('[data-price-operation]').value,value=parse(c.panel.querySelector('[data-price-bulk]').value);if(mode!=='reset'&&!Number.isFinite(value)){notify('Saisissez un montant ou un pourcentage valide.',true);return}if(!c.selected.size){notify('Sélectionnez au moins une ligne.',true);return}
   for(const r of c.rows){const k=key(c,r);if(!c.selected.has(k))continue;const old=c.draft.has(k)&&c.draft.get(k)!==null?c.draft.get(k):r.price;const next=mode==='reset'?null:mode==='percent'?old*(1+value/100):mode==='add'?old+value:value;c.draft.set(k,next===null?null:Math.round(next*1000)/1000)}store(c);decorate();notify('Aperçu préparé. Vérifiez les nouveaux prix et les marges avant d’enregistrer.')
  }
- async function save(){const c=context();if(!c||saving||!c.s.ready||!c.draft.size||[...c.draft.values()].some(v=>v!==null&&!rules.validPrice(v)))return;saving=true;decorate();
-  try{const next=rules.change(c.s.data,Object.fromEntries(c.draft),'Modification de '+c.draft.size+' ligne(s)');const response=await fetch('/api/doc/cfg_price_'+c.id,{method:'PUT',headers:{'Content-Type':'application/json','X-SK':'1','X-Base-Version':String(c.s.version)},body:JSON.stringify(next)});if(!response.ok)throw new Error(response.status===409?'Un autre onglet a modifié ce tarif. Rechargez : votre aperçu reste à vérifier.':'Enregistrement refusé (HTTP '+response.status+').');const result=await response.json();c.s.data=next;c.s.version=result.version;clearDraft(c.id);recalc();render();notify('Prix enregistrés pour ce produit. Les autres produits sont inchangés.');
+ async function save(){const c=context();if(!c||saving||!c.s.ready)return;const delta=tierDelta(c);if((!c.draft.size&&!delta)||[...c.draft.values()].some(v=>v!==null&&!rules.validPrice(v)))return;saving=true;decorate();
+  try{const added=c.tiers.filter(t=>!savedTiers(c.id).some(x=>x.key===t.key)).length,removed=delta-added,label='Modification de '+c.draft.size+' ligne(s)'+(added?' · '+added+' palier(s) ajouté(s)':'')+(removed?' · '+removed+' palier(s) retiré(s)':'');
+   const next=rules.change(c.s.data,Object.fromEntries(c.draft),label,new Date(),delta?c.tiers:undefined,c.id);if(!rules.validDocument(c.id,next))throw new Error('Document de prix invalide : vérifiez les quantités des paliers (entiers, sans doublon).');
+   const response=await fetch('/api/doc/cfg_price_'+c.id,{method:'PUT',headers:{'Content-Type':'application/json','X-SK':'1','X-Base-Version':String(c.s.version)},body:JSON.stringify(next)});if(!response.ok)throw new Error(response.status===409?'Un autre onglet a modifié ce tarif. Rechargez : votre aperçu reste à vérifier.':'Enregistrement refusé (HTTP '+response.status+').');const result=await response.json();c.s.data=next;c.s.version=result.version;clearDraft(c.id);recalc();render();notify('Prix et paliers enregistrés pour ce produit : le CRM les lit immédiatement. Les autres produits sont inchangés.');
   }catch(e){notify(e.message,true)}finally{saving=false;decorate()}
  }
- function undo(){const c=context();if(!c||!c.s.data.history.length)return;const last=c.s.data.history.at(-1);c.draft=new Map(last.changes.map(x=>[x.key,x.before]));store(c);decorate();notify('Retour préparé depuis le dernier lot. Vérifiez puis enregistrez pour confirmer.')}
+ function undo(){const c=context();if(!c||!c.s.data.history.length)return;const last=c.s.data.history.at(-1);c.draft=new Map(last.changes.map(x=>[x.key,x.before]));
+  if(last.tiers){const added=new Set((last.tiers.added||[]).map(t=>t.key)),kept=savedTiers(c.id).filter(t=>!added.has(t.key)),back=(last.tiers.removed||[]).filter(t=>!kept.some(x=>x.key===t.key));c.tiers=[...kept,...back];showTier(c)}
+  store(c);render();notify('Retour préparé depuis le dernier lot. Vérifiez puis enregistrez pour confirmer.')}
  const renders={render,renderG,renderStk,catBody,zCatBody,gCatBody};
  render=function(){renders.render();decorate()};renderG=function(){renders.renderG();decorate()};renderStk=function(){renders.renderStk();decorate()};catBody=function(){renders.catBody();decorate()};zCatBody=function(){renders.zCatBody();decorate()};gCatBody=function(){renders.gCatBody();decorate()};
  // Préchargement de toutes les références : les prix de l’accueil utilisent aussi les prix fixés.
  for(const p of GPD)if(!GH[p.id])GH[p.id]=cleanG(p.id,null);
  for(const id of ['mylar','stk',...GPD.map(p=>p.id)])state(id);
- window.addEventListener('beforeunload',event=>{if([...drafts.values()].some(d=>d.size)){event.preventDefault();event.returnValue=''}});
- return {snapshot(id){const s=state(id);if(!s.ready)throw new Error('Attendez le chargement des prix.');const common={product:id,rules:clone(s.data.rules),scope:{id:'default',zone:null,country:null,currency:'EUR'},shared:clone(H)};if(id==='mylar')return {...common,kind:'mylar',hyp:clone(H),rows:clone(BASE.rows),marketFactor:MKF,materialAdjustment:MADJ};if(id==='stk')return {...common,kind:'stk',...clone(stickerSettings())};return {...common,kind:'g',hyp:clone(GH[id]||cleanG(id,null))}},hasDraft(id){return drafts.get(id)?.size>0}};
+ window.addEventListener('beforeunload',event=>{if([...drafts.values()].some(d=>d.size)||[...tierDrafts.keys()].some(id=>tierDelta({id,tiers:tierDrafts.get(id)}))){event.preventDefault();event.returnValue=''}});
+ return {snapshot(id){const s=state(id);if(!s.ready)throw new Error('Attendez le chargement des prix.');const common={product:id,rules:clone(s.data.rules),tiers:clone(s.data.tiers||[]),scope:{id:'default',zone:null,country:null,currency:'EUR'},shared:clone(H)};if(id==='mylar')return {...common,kind:'mylar',hyp:clone(H),rows:clone(BASE.rows),marketFactor:MKF,materialAdjustment:MADJ};if(id==='stk')return {...common,kind:'stk',...clone(stickerSettings())};return {...common,kind:'g',hyp:clone(GH[id]||cleanG(id,null))}},hasDraft(id){return drafts.get(id)?.size>0||(tierDrafts.has(id)&&tierDelta({id,tiers:tierDrafts.get(id)})>0)}};
 })();
-
 /* TABLE PRICING END */
 /* BUSINESS CONTROLS START */
 const PRODUCT_IDS=['mylar','stk','badge','pin','bottle','pen','lanyard','patch','tshirt','cap','beanie','bucket','sock','tote'];

@@ -1,6 +1,7 @@
 // Magasin de documents du hub (table hub.docs), même contrat que l'ancien Worker :
 // GET /api/doc/<nom> -> { data, version } ; PUT avec X-Base-Version pour éviter les écrasements.
 import crypto from 'node:crypto';
+import { createPriceRules } from './crm/price-rules.mjs';
 
 export const DOCS = ['cfg_hyp', 'cfg_veille', 'cfg_gal', 'cfg_zhyp', 'cfg_zveille', 'cfg_zgal',
   'cfg_watch_manual', 'cfg_promotions', 'cfg_publications'];
@@ -14,22 +15,12 @@ export function allowedName(name) {
 }
 
 const isObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
-const validPrice = (p) => typeof p === 'number' && Number.isFinite(p) && p >= 0.001 && p <= 100000;
+const priceRules = createPriceRules();
 
+// Même validation que le moteur de prix et que la page : règles [produit, variante, quantité] → prix,
+// paliers personnalisés `tiers` [{ key, q }] (facultatifs : les anciens documents restent valides), historique (12 entrées).
 function validPriceDoc(product, doc) {
-  if (!isObject(doc) || doc.schema !== 1 || doc.scope !== 'default') return false;
-  if (!isObject(doc.rules) || Object.keys(doc.rules).length > 2000) return false;
-  if (!Array.isArray(doc.history) || doc.history.length > 12) return false;
-  const validKey = (k) => {
-    try {
-      const a = JSON.parse(k);
-      return k.length <= 400 && Array.isArray(a) && a[0] === product &&
-        a.every((v) => typeof v === 'string' || (typeof v === 'number' && Number.isFinite(v)));
-    } catch {
-      return false;
-    }
-  };
-  return Object.entries(doc.rules).every(([k, p]) => validKey(k) && validPrice(p));
+  return isObject(doc) && priceRules.validDocument(product, doc);
 }
 
 // Validation de forme (la page revalide tout à la lecture)

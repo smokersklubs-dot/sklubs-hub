@@ -24,7 +24,7 @@ export async function currentSnapshots(env,ids=PRODUCT_IDS){
   const price=docs['cfg_price_'+id]?.data;
   // Même règle que l'écran du hub : un document de prix fixés invalide rend le tarif indisponible.
   if(price&&!rules.validDocument(id,price)){unreadable.push(id);continue}
-  const common={product:id,name:hub.names[id],rules:clone(price?.rules||{}),scope:{id:'default',zone:null,country:null,currency:'EUR'},shared:clone(hub.H)};
+  const common={product:id,name:hub.names[id],rules:clone(price?.rules||{}),tiers:clone(price?.tiers||[]),scope:{id:'default',zone:null,country:null,currency:'EUR'},shared:clone(hub.H)};
   const snapshot=id==='mylar'?{...common,kind:'mylar',hyp:clone(hub.H),rows:clone(hub.rows),marketFactor:hub.MKF,materialAdjustment:hub.MADJ}
    :id==='stk'?{...common,kind:'stk',...clone(hub.sticker())}:{...common,kind:'g',hyp:clone(hub.generic(id))};
   const used=sourceDocuments(id),version=Math.max(0,...used.map(n=>docs[n]?.version||0));
