@@ -10,7 +10,8 @@ import crypto from 'node:crypto';
 import pg from 'pg';
 import { allowedName, validDoc, getDoc, putDoc, MAX_BODY } from './docs.js';
 import { checkAuth } from './auth.js';
-import { crmEnv, handleCrm } from './crm/route.js';
+import { crmEnv, handleCrm, bridge } from './crm/route.js';
+import { marketRoute, scheduleDaily } from './market/routes.js';
 
 const PORT = Number(process.env.PORT || 8080);
 const SCHEMA = process.env.HUB_DB_SCHEMA || 'hub';
@@ -131,6 +132,16 @@ const server = http.createServer(async (req, res) => {
     const doc = url.pathname.match(/^\/api\/doc\/([a-z0-9_]+)$/);
     if (doc) return await docRoute(req, res, doc[1]);
 
+    if (/^\/api\/(mat|matrefresh|research|market-live|market-refresh|watch-status|watch-check)$/.test(url.pathname)) {
+      let body = '';
+      if (req.method === 'POST') {
+        try { body = await readBody(req); } catch (e) { return sendJson(res, e.status || 400, { error: 'trop gros' }); }
+      }
+      const base = `${req.headers['x-forwarded-proto'] || 'http'}://${req.headers.host}`;
+      const env = crmEnv(pool, SCHEMA);
+      if (await bridge(req, res, base, body, (request, u) => marketRoute(request, u, env))) return;
+    }
+
     if (req.method !== 'GET' && req.method !== 'HEAD') return sendJson(res, 405, { error: 'méthode' });
     if (url.pathname === '/' || url.pathname === '/index.html') {
       return send(res, 200, req.method === 'HEAD' ? '' : indexHtml, { 'content-type': 'text/html; charset=utf-8' });
@@ -147,3 +158,5 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => console.log(`hub à l'écoute sur ${PORT}`));
+
+scheduleDaily(crmEnv(pool, SCHEMA));
