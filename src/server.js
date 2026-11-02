@@ -10,6 +10,7 @@ import crypto from 'node:crypto';
 import pg from 'pg';
 import { allowedName, validDoc, getDoc, putDoc, MAX_BODY } from './docs.js';
 import { checkAuth } from './auth.js';
+import { crmEnv, handleCrm } from './crm/route.js';
 
 const PORT = Number(process.env.PORT || 8080);
 const SCHEMA = process.env.HUB_DB_SCHEMA || 'hub';
@@ -109,6 +110,15 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/health') {
       await pool.query('SELECT 1');
       return sendJson(res, 200, { ok: true });
+    }
+
+    // API serveur à serveur du CRM : jeton Bearer, avant le mot de passe d'administration.
+    if (url.pathname.startsWith('/api/crm/v1/')) {
+      let body = '';
+      if (req.method === 'POST') {
+        try { body = await readBody(req); } catch (e) { return sendJson(res, e.status || 400, { error: 'trop gros' }); }
+      }
+      if (await handleCrm(req, res, url, body, crmEnv(pool, SCHEMA))) return;
     }
 
     const auth = checkAuth(req);
