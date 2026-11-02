@@ -28,12 +28,20 @@ test('palier intermédiaire : coefficient interpolé en log(quantité) entre les
   assert.ok(out.price > native(750) && out.price < native(750) * 1.2);
 });
 
-test('hors bornes : coefficient du palier fixé le plus proche', () => {
+test('hors des paliers fixés : formule native inchangée (limité aux paliers)', () => {
   const fixed = { [K(500)]: native(500) * 1.1, [K(1000)]: native(1000) * 0.9 };
   const below = rules.resolve('pen', fixed, K(100), result(100), native, 0.2);
   const above = rules.resolve('pen', fixed, K(5000), result(5000), native, 0.2);
-  assert.equal(below.price, Math.round(native(100) * 1.1 * 1000) / 1000);
-  assert.equal(above.price, Math.round(native(5000) * 0.9 * 1000) / 1000);
+  assert.equal(below.price, native(100));
+  assert.equal(above.price, native(5000));
+  assert.equal(below.manual, undefined);
+  assert.equal(above.interpolated, undefined);
+  // Un seul palier fixé : seule sa quantité exacte change.
+  const single = { [K(750)]: 0.3 };
+  assert.equal(rules.resolve('pen', single, K(600), result(600), native, 0.2).price, native(600));
+  assert.equal(rules.resolve('pen', single, K(1000), result(1000), native, 0.2).price, native(1000));
+  assert.equal(rules.resolve('pen', single, K(1000), result(1000), native, 0.2).manual, undefined);
+  assert.equal(rules.resolve('pen', single, K(750), result(750), native, 0.2).price, 0.3);
 });
 
 test('aucun palier de la même série : formule native inchangée', () => {

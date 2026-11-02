@@ -25,7 +25,7 @@ test('Stylos sans document : formule native, 0,280 € à 1000', async () => {
   assert.deepEqual(products.pen.snapshot.tiers, []);
 });
 
-test('Stylos avec un palier fixé à 750 : exact à 750, interpolé à 600 et 900, inchangé loin des voisins', async () => {
+test('Stylos avec un palier fixé à 750 : exact à 750, 600 et 900 inchangés (un seul palier), interpolé entre deux paliers', async () => {
   const bare = (await currentSnapshots(env(), ['pen'])).products.pen.snapshot;
   const nativeAt = (q) => priceSnapshot(bare, { v: 'std', q }).quote.unitHT;
   const docs = { cfg_price_pen: penDoc([{ key: K(750), q: 750 }], { [K(750)]: 0.4 }) };
@@ -36,18 +36,23 @@ test('Stylos avec un palier fixé à 750 : exact à 750, interpolé à 600 et 90
   assert.equal(at(750).quote.unitHT, 0.4);
   assert.equal(at(750).internal.manualRule, true);
   assert.equal(at(750).internal.interpolatedRule, false);
-  // Un seul palier : même coefficient partout (hors bornes des deux côtés).
-  const coefficient = 0.4 / nativeAt(750);
-  assert.equal(at(600).quote.unitHT, Math.round(nativeAt(600) * coefficient * 1000) / 1000);
-  assert.equal(at(900).quote.unitHT, Math.round(nativeAt(900) * coefficient * 1000) / 1000);
-  assert.equal(at(600).internal.interpolatedRule, true);
-  assert.equal(at(600).internal.manualRule, true);
-  // Avec un second palier à 1000 égal à la formule, 900 se rapproche de la formule.
+  // Un seul palier : seule sa quantité exacte change, 600 et 1000 restent sur la formule.
+  assert.equal(at(600).quote.unitHT, nativeAt(600));
+  assert.equal(at(900).quote.unitHT, nativeAt(900));
+  assert.equal(at(1000).quote.unitHT, 0.28);
+  assert.equal(at(600).internal.interpolatedRule, false);
+  assert.equal(at(600).internal.manualRule, false);
+  assert.equal(at(1000).internal.manualRule, false);
+  // Avec un second palier à 1000 égal à la formule, 900 est interpolé entre 750 (0,40) et 1000 (0,28) ; 1200 reste sur la formule.
   const two = { cfg_price_pen: penDoc([{ key: K(750), q: 750 }], { [K(750)]: 0.4, [K(1000)]: 0.28 }) };
   const s2 = (await currentSnapshots(env(two), ['pen'])).products.pen.snapshot;
-  const p900 = priceSnapshot(s2, { v: 'std', q: 900 }).quote.unitHT;
-  assert.ok(p900 > 0.28 && p900 < at(900).quote.unitHT, `900 entre la formule et le coefficient de 750 : ${p900}`);
+  const d900 = priceSnapshot(s2, { v: 'std', q: 900 });
+  assert.ok(d900.quote.unitHT > 0.28 && d900.quote.unitHT < 0.4, `900 entre les deux paliers : ${d900.quote.unitHT}`);
+  assert.equal(d900.internal.interpolatedRule, true);
+  assert.equal(d900.internal.manualRule, true);
   assert.equal(priceSnapshot(s2, { v: 'std', q: 1000 }).quote.unitHT, 0.28);
+  assert.equal(priceSnapshot(s2, { v: 'std', q: 1200 }).quote.unitHT, nativeAt(1200));
+  assert.equal(priceSnapshot(s2, { v: 'std', q: 1200 }).internal.manualRule, false);
   // La variante d'un autre produit n'est pas touchée.
   const cap = (await currentSnapshots(env(two), ['cap'])).products.cap.snapshot;
   assert.equal(priceSnapshot(cap, { v: 'std', q: 750 }).internal.manualRule, false);
@@ -72,7 +77,7 @@ test('catalogue : paliers personnalisés listés avec quantité, prix HT et conf
   assert.deepEqual(pen.customTiers.map((t) => t.quantity), [750, 600]);
   assert.deepEqual(pen.customTiers[0], { quantity: 750, unitHT: 0.4, fixed: true, configuration: { v: 'std', q: 750 } });
   assert.equal(pen.customTiers[1].fixed, false);
-  assert.equal(pen.customTiers[1].unitHT, priceSnapshot(products.pen.snapshot, { v: 'std', q: 600 }).quote.unitHT);
+  assert.equal(pen.customTiers[1].unitHT, priceSnapshot(products.pen.snapshot, { v: 'std', q: 600 }).quote.unitHT, 'palier sans prix : formule native (hors des paliers fixés)');
   for (const e of entries) assert.ok(Array.isArray(e.customTiers));
   for (const key of ['cout', 'cost', 'marge', 'usine']) assert.equal(JSON.stringify(entries).includes('"' + key + '"'), false, 'aucun coût dans le catalogue');
 });
@@ -121,6 +126,6 @@ test('API CRM : 401 sans jeton, 403 avec Origin, catalogue de 14 produits, /pric
   const price = async (quantity) => (await call('/api/crm/v1/price', { method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' }, body: JSON.stringify({ productId: 'pen', site: 'fr', quantity, configuration: { v: 'std' }, includeInternal: true }) })).json();
   assert.equal((await price(750)).unitHT, 0.4);
   assert.equal((await price(750)).internal.manualRule, true);
-  assert.equal((await price(600)).internal.interpolatedRule, true);
-  assert.equal((await price(1000)).internal.manualRule, true, 'hors bornes : coefficient du palier le plus proche');
+  assert.equal((await price(600)).internal.manualRule, false, 'hors des paliers fixés : formule native');
+  assert.equal((await price(1000)).unitHT, 0.28, 'hors des paliers fixés : formule native');
 });

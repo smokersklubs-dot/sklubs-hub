@@ -19,8 +19,9 @@ export function createPriceRules(){
    ...(result.remise!=null?{remise:1-value/(result.price/(1-result.remise))}:{}),
    ...(result.perM2!=null?{perM2:value*10000/result.A}:{}),marge:cost==null?null:(value-cost)/value,margeEur:cost==null?null:(value-cost)*result.q};
  }
- // Prix fixé exact → appliqué tel quel. Sinon, coefficient (prix fixé / formule) interpolé linéairement en log(quantité)
- // entre les paliers fixés voisins de la même série ; hors bornes, coefficient du palier le plus proche ; aucun palier → formule.
+ // Prix fixé exact → appliqué tel quel. Entre deux paliers fixés de la même série, coefficient (prix fixé / formule)
+ // interpolé linéairement en log(quantité). Hors des paliers fixés (sous le plus petit, au-dessus du plus grand) ou sans
+ // palier : formule native inchangée (décision de Lemexx du 2/11/2026 : « limiter aux paliers »).
  // nativeAt(q) renvoie le prix de la formule native à la quantité q (null si non calculable).
  function resolve(product,rules,k,result,nativeAt,vat){
   const exact=rules?rules[k]:undefined;if(validPrice(exact))return apply(result,exact,vat);
@@ -34,9 +35,8 @@ export function createPriceRules(){
   }
   if(!points.length)return result;
   points.sort((a,b)=>a.q-b.q);
-  let c;
-  if(me.q<=points[0].q)c=points[0].c;else if(me.q>=points[points.length-1].q)c=points[points.length-1].c;
-  else{const i=points.findIndex(x=>x.q>=me.q),a=points[i-1],b=points[i],r=(Math.log(me.q)-Math.log(a.q))/(Math.log(b.q)-Math.log(a.q));c=a.c+(b.c-a.c)*r}
+  if(me.q<points[0].q||me.q>points[points.length-1].q)return result;// hors des paliers fixés : formule native
+  const i=points.findIndex(x=>x.q>=me.q),a=points[i-1],b=points[i],r=(Math.log(me.q)-Math.log(a.q))/(Math.log(b.q)-Math.log(a.q)),c=a.c+(b.c-a.c)*r;
   return {...apply(result,result.price*c,vat),interpolated:true,coefficient:c};
  }
  const validKeyFor=product=>k=>{try{const a=JSON.parse(k);return k.length<=400&&Array.isArray(a)&&a[0]===product&&a.every(v=>typeof v==='string'||typeof v==='number'&&Number.isFinite(v))}catch{return false}};

@@ -24,8 +24,8 @@ Document `cfg_price_<produit>` (schéma 1) : `rules` (clé `[produit, variante o
 `tiers` (paliers ajoutés dans le tableau : `[{ key, q }]`, facultatif, 2000 au plus, sans doublon) et `history` (12 entrées,
 avec les paliers ajoutés ou retirés). Validation partagée par la page, le serveur (`src/docs.js`) et le moteur
 (`src/crm/price-rules.mjs`). Prix servi : prix fixé exact ; sinon formule native × coefficient (prix fixé / formule)
-interpolé en log(quantité) entre les paliers fixés voisins de la même série ; hors bornes, coefficient du palier le plus
-proche ; aucun palier, formule native. Jamais sous le plancher de marge. `/api/crm/v1/catalog` liste `customTiers`
+interpolé en log(quantité) entre les paliers fixés voisins de la même série ; hors des paliers fixés (sous le plus petit,
+au-dessus du plus grand) ou sans palier, formule native inchangée. Jamais sous le plancher de marge. `/api/crm/v1/catalog` liste `customTiers`
 (quantité, prix HT, configuration pour `/price`) ; `/price` avec `includeInternal` expose `manualRule` et `interpolatedRule`.
 
 ## Tests
