@@ -156,6 +156,15 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/' || url.pathname === '/index.html') {
       return send(res, 200, req.method === 'HEAD' ? '' : indexHtml, { 'content-type': 'text/html; charset=utf-8' });
     }
+    {
+      const m = /^\/img\/(mylar|produits)\/([a-z0-9_]{1,60})\.jpg$/.exec(url.pathname);
+      if (m) {
+        try {
+          const file = readFileSync(path.join(PUBLIC, 'img', m[1], m[2] + '.jpg'));
+          return send(res, 200, req.method === 'HEAD' ? '' : file, { 'content-type': 'image/jpeg', 'Cache-Control': 'private, max-age=86400' });
+        } catch { return sendJson(res, 404, { error: 'introuvable' }); }
+      }
+    }
     if (url.pathname === '/chart.js') {
       return send(res, 200, req.method === 'HEAD' ? '' : chartJs, { 'content-type': 'application/javascript; charset=utf-8' });
     }
