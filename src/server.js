@@ -10,6 +10,7 @@ import crypto from 'node:crypto';
 import pg from 'pg';
 import { allowedName, validDoc, getDoc, putDoc, MAX_BODY } from './docs.js';
 import { checkAuth } from './auth.js';
+import { consumeTicket, sessionCookie } from './sso.js';
 import { crmEnv, handleCrm, bridge } from './crm/route.js';
 import { marketRoute, scheduleDaily } from './market/routes.js';
 
@@ -120,6 +121,13 @@ const server = http.createServer(async (req, res) => {
         try { body = await readBody(req); } catch (e) { return sendJson(res, e.status || 400, { error: 'trop gros' }); }
       }
       if (await handleCrm(req, res, url, body, crmEnv(pool, SCHEMA))) return;
+    }
+
+    // Accès depuis le CRM : passe signé de 60 s, usage unique, puis session du hub par cookie.
+    if (url.pathname === '/sso' && req.method === 'GET') {
+      const who = consumeTicket(url.searchParams.get('t'));
+      if (!who) return sendText(res, 401, 'Lien d’accès expiré ou déjà utilisé : rouvrez le hub depuis le CRM.');
+      return send(res, 303, '', { Location: '/', 'Set-Cookie': sessionCookie(who) });
     }
 
     const auth = checkAuth(req);

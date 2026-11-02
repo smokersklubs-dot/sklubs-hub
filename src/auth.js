@@ -2,6 +2,7 @@
 // Verrouillage après 8 échecs par IP pendant 15 minutes (mémoire du processus).
 import crypto from 'node:crypto';
 import { sha256 } from './docs.js';
+import { hasSession } from './sso.js';
 
 const MAX_FAILS = 8;
 const LOCK_MS = 15 * 60 * 1000;
@@ -22,6 +23,8 @@ function locked(ip) {
 
 // Renvoie 'ok' | 'missing' | 'locked' | 'refused'
 export function checkAuth(req) {
+  // Session ouverte depuis le CRM (passe signé) : pas de mot de passe à saisir.
+  if (hasSession(req)) return 'ok';
   const password = process.env.HUB_ACCESS_PASSWORD || '';
   if (password.length < 10) return 'missing';
   const ip = clientIp(req);
