@@ -1,6 +1,7 @@
 // Hub de prix SKLUBS (Pilotage des prix), version VPS.
 // Phase A2 : page de pilotage + magasin de documents sur Postgres (schéma hub).
 // Les identifiants sont lus dans l'environnement (fichiers env), jamais écrits dans le code.
+import './env.js';
 import http from 'node:http';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
