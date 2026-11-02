@@ -20,7 +20,9 @@ if (!/^[a-z_]+$/.test(SCHEMA)) throw new Error('HUB_DB_SCHEMA invalide');
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(here, '..', 'public');
-const indexHtml = readFileSync(path.join(PUBLIC, 'index.html'));
+// Fins de ligne normalisées en LF : le navigateur normalise le texte des scripts inline avant de calculer
+// l'empreinte CSP ; servir et hacher exactement le même texte évite tout blocage de la page.
+const indexHtml = Buffer.from(readFileSync(path.join(PUBLIC, 'index.html'), 'utf8').replace(/\r\n?/g, '\n'), 'utf8');
 const chartJs = readFileSync(path.join(PUBLIC, 'chart.js'));
 
 // Empreintes des scripts inline autorisés par la CSP (calculées depuis la page elle-même)

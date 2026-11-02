@@ -1,0 +1,9 @@
+# Fins de ligne LF partout : les empreintes CSP des scripts inline dépendent du texte exact servi.
+* text=auto eol=lf
+*.html text eol=lf
+*.js text eol=lf
+*.mjs text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.sh text eol=lf
+Dockerfile text eol=lf
