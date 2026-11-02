@@ -1,0 +1,15 @@
+{
+  "name": "sklubs-hub",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Hub de prix SKLUBS (Pilotage des prix), version VPS",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js"
+  },
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "pg": "^8.13.0"
+  }
+}
