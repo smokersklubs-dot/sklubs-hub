@@ -12,7 +12,7 @@ import { allowedName, validDoc, getDoc, putDoc, MAX_BODY } from './docs.js';
 import { checkAuth } from './auth.js';
 import { consumeTicket, sessionCookie } from './sso.js';
 import { crmEnv, handleCrm, bridge } from './crm/route.js';
-import { publicMylarRoute } from './public-mylar.js';
+import { publicMylarRoute, publicMylarQuoteRoute } from './public-mylar.js';
 import { marketRoute, scheduleDaily } from './market/routes.js';
 
 const PORT = Number(process.env.PORT || 8080);
@@ -129,6 +129,10 @@ const server = http.createServer(async (req, res) => {
     // Grille Mylar publique (prix de vente HT uniquement) pour le configurateur : lecture seule, CORS limité.
     if (url.pathname === '/api/public/mylar-grid') {
       if (await publicMylarRoute(req, res, url, crmEnv(pool, SCHEMA), sendJson)) return;
+    }
+    // Prix Mylar public d'une configuration (taille et quantité libres, prix en cours, même moteur que le CRM).
+    if (url.pathname === '/api/public/mylar-quote') {
+      if (await publicMylarQuoteRoute(req, res, url, crmEnv(pool, SCHEMA), sendJson)) return;
     }
 
     // Accès depuis le CRM : passe signé de 60 s, usage unique, puis session du hub par cookie.
