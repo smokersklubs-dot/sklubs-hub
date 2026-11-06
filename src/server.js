@@ -12,6 +12,7 @@ import { allowedName, validDoc, getDoc, putDoc, MAX_BODY } from './docs.js';
 import { checkAuth } from './auth.js';
 import { consumeTicket, sessionCookie } from './sso.js';
 import { crmEnv, handleCrm, bridge } from './crm/route.js';
+import { publicMylarRoute } from './public-mylar.js';
 import { marketRoute, scheduleDaily } from './market/routes.js';
 
 const PORT = Number(process.env.PORT || 8080);
@@ -54,8 +55,8 @@ function send(res, status, body, headers = {}) {
   res.writeHead(status, { ...SEC_HEADERS, ...headers });
   res.end(body);
 }
-const sendJson = (res, status, obj) =>
-  send(res, status, JSON.stringify(obj), { 'content-type': 'application/json; charset=utf-8' });
+const sendJson = (res, status, obj, extra = {}) =>
+  send(res, status, JSON.stringify(obj), { 'content-type': 'application/json; charset=utf-8', ...extra });
 const sendText = (res, status, text, extra = {}) =>
   send(res, status, text, { 'content-type': 'text/plain; charset=utf-8', ...extra });
 
@@ -123,6 +124,11 @@ const server = http.createServer(async (req, res) => {
         try { body = await readBody(req); } catch (e) { return sendJson(res, e.status || 400, { error: 'trop gros' }); }
       }
       if (await handleCrm(req, res, url, body, crmEnv(pool, SCHEMA))) return;
+    }
+
+    // Grille Mylar publique (prix de vente HT uniquement) pour le configurateur : lecture seule, CORS limité.
+    if (url.pathname === '/api/public/mylar-grid') {
+      if (await publicMylarRoute(req, res, url, crmEnv(pool, SCHEMA), sendJson)) return;
     }
 
     // Accès depuis le CRM : passe signé de 60 s, usage unique, puis session du hub par cookie.
