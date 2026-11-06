@@ -1956,11 +1956,11 @@ const GICO={badge:'<circle cx="24" cy="24" r="15"/><circle cx="24" cy="24" r="9"
 const gico=(k,sz)=>`<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round" style="width:${sz||30}px;height:${sz||30}px">${GICO[k]||''}</svg>`;
 let GP='tshirt',GH={},GV={},GDOCS={},GSUB={},gdb=null,gcanWrite=true,gsaveT={};
 const gdef=id=>GPD.find(p=>p.id==id)||GPD[0];
-function cleanG(id,d){const D=gdef(id),o={p0:D.p0,q0:D.q0,b:GB0[id]!=null?GB0[id]:D.b,moq:D.moq,sku:D.sku,wg:D.wg,over:.05,cost0:0,bcr:.7,fixed:0,incTr:false,mS:.3,matOn:false,matShare:.5,mode:'air',vars:[{id:'std',n:D.vn,c:1,cc:1}],notes:{},idx:{},modes:JSON.parse(JSON.stringify(DEF.modes))};
+function cleanG(id,d){const D=gdef(id),o={p0:D.p0,q0:D.q0,b:GB0[id]!=null?GB0[id]:D.b,moq:D.moq,sku:D.sku,wg:D.wg,over:.05,cost0:0,bcr:.7,fixed:0,incTr:true,incTrChoice:false,mS:.3,matOn:false,matShare:.5,mode:'air',vars:[{id:'std',n:D.vn,c:1,cc:1}],notes:{},idx:{},modes:JSON.parse(JSON.stringify(DEF.modes))};
  GIDX[D.ix].forEach(x=>o.idx[x[0]]={n:x[1],base:100,cur:100,w:x[2],auto:false});
  if(!d||typeof d!='object')return o;
  const R={p0:[.001,1e5],q0:[1,1e7],b:[0,.8],moq:[1,1e6],sku:[1,500],wg:[0,50000],over:[0,1],cost0:[0,1e5],bcr:[0,1.5],fixed:[0,1e5],mS:[0,.9],matShare:[0,1]};
- for(const k in R)o[k]=num(d[k],o[k],R[k][0],R[k][1]);o.incTr=d.incTr===true;o.matOn=d.matOn===true;
+ for(const k in R)o[k]=num(d[k],o[k],R[k][0],R[k][1]);o.incTrChoice=d.incTrChoice===true;o.incTr=o.incTrChoice?d.incTr===true:true;o.matOn=d.matOn===true;
  if(Array.isArray(d.vars)){const v=d.vars.slice(0,30).filter(x=>x&&typeof x=='object').map((x,i)=>({id:/^[\w-]{1,20}$/.test(x.id)?x.id:'v'+i,n:str(x.n,60)||'Variante',c:num(x.c,1,.05,20),cc:num(x.cc,1,.05,20)}));if(v.length)o.vars=v}
  if(d.notes&&typeof d.notes=='object')for(const k of Object.keys(d.notes).slice(0,60))o.notes[k.slice(0,20)]=str(d.notes[k],80);
  if(d.idx&&typeof d.idx=='object')for(const k in o.idx){const m=d.idx[k];if(!m||typeof m!='object')continue;o.idx[k].base=num(m.base,100,1,1e7);o.idx[k].cur=num(m.cur,100,1,1e7);o.idx[k].w=num(m.w,o.idx[k].w,0,1);o.idx[k].auto=m.auto===true}
@@ -2114,7 +2114,7 @@ document.addEventListener('input',e=>{if(view!='g')return;const i=e.target.id;if
  else if(i.startsWith('gv-')&&i!='gv-note'){const[,f,n]=i.split('-'),vs=JSON.parse(JSON.stringify(gH().vars));if(!vs[+n])return;if(f=='n')vs[+n].n=e.target.value;else{if(isNaN(v))return;vs[+n][f]=v}gsetH({vars:vs},true)}
  else if(i.startsWith('ga-')){if(isNaN(v))return;const[,k,t,n]=i.split('-'),m=JSON.parse(JSON.stringify(gH().modes));if(m[k]&&m[k].t[+n]){m[k].t[+n][t=='k'?0:1]=v;gsetH({modes:m},true)}}
  else if(i.startsWith('gd-')){if(isNaN(v))return;const k=i.slice(3),m=JSON.parse(JSON.stringify(gH().modes));if(m[k]){m[k].d=v;gsetH({modes:m},true)}}});
-document.addEventListener('change',e=>{if(view!='g')return;const i=e.target.id||'';if(i=='gh-inctr'){gsetH({incTr:e.target.checked});return}if(i.startsWith('ga-')){const k=i.split('-')[1],m=JSON.parse(JSON.stringify(gH().modes));m[k].t.sort((x,y)=>x[0]-y[0]);gsetH({modes:m})}});
+document.addEventListener('change',e=>{if(view!='g')return;const i=e.target.id||'';if(i=='gh-inctr'){gsetH({incTr:e.target.checked,incTrChoice:true});return}if(i.startsWith('ga-')){const k=i.split('-')[1],m=JSON.parse(JSON.stringify(gH().modes));m[k].t.sort((x,y)=>x[0]-y[0]);gsetH({modes:m})}});
 document.addEventListener('click',async e=>{if(view!='g')return;const h=gH();
  if(e.target.id=='grst'){GH[GP]=cleanG(GP,null);renderG();gsave();return}
  if(e.target.id=='gv-add'){const vs=JSON.parse(JSON.stringify(h.vars));vs.push({id:'v'+Date.now().toString(36).slice(-5),n:'Nouvelle variante',c:1,cc:1});gsetH({vars:vs});return}

@@ -14,6 +14,9 @@ export const DEFAULT_QUANTITIES=[100,250,500,1000,2500,5000,10000];
 export const MYLAR_RANGE={min:200,max:5000};
 const MAX_Q=10_000_000;
 // Mêmes libellés que l'écran du hub (public/index.html : MAT et PHT).
+// Épaisseurs proposées au client (décision de Lemexx du 6 novembre 2026). Une épaisseur sans prix usine dans le tarif
+// reste « à chiffrer » : aucun prix n'est inventé, elle devient chiffrable dès que des formats à cette épaisseur existent.
+export const MYLAR_THICKNESS_OFFER=[0.1,0.12,0.13,0.14];
 export const MATERIAL_LABELS={'MOPP/VMPET/PE':'Métallisé','MOPP/AL/PE':'Aluminium'};
 // Composition en clair (couches extérieure / barrière / intérieure).
 export const MATERIAL_DESCRIPTIONS={'MOPP/VMPET/PE':'Polypropylène mat (MOPP) · PET métallisé (VMPET) · polyéthylène (PE)','MOPP/AL/PE':'Polypropylène mat (MOPP) · aluminium (AL) · polyéthylène (PE)'};
@@ -45,7 +48,8 @@ function internalTariff(kind,s){
  if(kind==='mylar'){const H=s.shared||s.hyp;return {transport:{modes:transportRates(H.modes),includedInCost:true,weight:{basis:'format',densityGPerCm3:num(H.dens),overweight:num(H.over)}},fixedCostPerOrderHT:num(H.fixed),marginFloor:{small:num(H.mS),large:num(H.mB),largeFrom:num(H.qB)}};}
  const h=s.hyp||{};
  if(kind==='stk')return {transport:{modes:transportRates(h.modes),includedInCost:true,weight:{basis:'surface',gsm:num(h.gsm),overweight:num(h.over),waste:num(h.chute)}},fixedCostPerOrderHT:num(h.fixed),marginFloor:{small:num(h.mS),large:num(h.mB),largeFrom:num(h.qB)}};
- // Produits génériques : prix selon la courbe du hub, sans plancher de marge dans le moteur ; transport compté dans le coût seulement si incTr.
+ // Produits génériques : prix selon la courbe du hub, sans plancher de marge dans le moteur (à venir) ; transport compté
+// dans le coût par défaut (incTr, décision de Lemexx du 6 novembre 2026).
  return {transport:{modes:transportRates(h.modes),includedInCost:!!h.incTr,weight:{basis:'piece',unitWeightKg:Number.isFinite(Number(h.wg))?Math.round(Number(h.wg)*(1+(Number(h.over)||0))*1000)/1e6:null}},fixedCostPerOrderHT:num(h.fixed),marginFloor:null};
 }
 const choice=(dict,withFee=false)=>Object.entries(dict||{}).map(([id,v])=>({id,name:String(v?.n||id),factor:Number.isFinite(Number(v?.c))?Number(v.c):1,...(withFee?{fixedFee:Number.isFinite(Number(v?.fix))?Number(v.fix):0}:{})}));
@@ -62,6 +66,7 @@ export function crmCatalogEntries(published,manifest=null){
     types:types.map(t=>({id:t,name:t,image:manifest?.types?.[TYPE_PHOTOS[t]||'doypack_zip']?.[0]??null,formats:entry.formats.filter(f=>f.t===t).length})),
     materials:[...new Set(entry.formats.map(f=>f.m))].map(m=>({id:m,name:MATERIAL_LABELS[m]||m,description:MATERIAL_DESCRIPTIONS[m]||null,thicknesses:[...new Set(entry.formats.filter(f=>f.m===m).map(f=>th.get(f.ref)).filter(Number.isFinite))].sort((a,b)=>a-b)})),
     thicknesses:[...new Set([...th.values()].filter(Number.isFinite))].sort((a,b)=>a-b),
+    thicknessOffer:[...new Set([...MYLAR_THICKNESS_OFFER,...th.values()].filter(Number.isFinite))].sort((a,b)=>a-b).map(v=>({value:v,priced:[...th.values()].includes(v)})),
     // Le hub ne modélise pas de finition Mylar séparée (mat, brillant, fenêtre) : le zip fait partie du type de sachet.
     options:[]};
   }

@@ -68,7 +68,7 @@ test('prix détaillé (CRM privé) : transport au kilo cohérent, plancher, marg
   const air = priceSnapshot(p.mylar, { ...d.configuration, mode: 'air', q: 1000 }).internal.transport;
   assert.ok(air.ratePerKg > t.ratePerKg, 'avion plus cher au kilo que bateau');
   const pen = priceSnapshot(p.pen, { v: 'std', q: 1000, mode: 'air' }).internal;
-  assert.equal(pen.transport.unitWeightKg, 0.01575); assert.equal(pen.transport.includedInCost, false); assert.equal(pen.marginFloorRate, null);
+  assert.equal(pen.transport.unitWeightKg, 0.01575); assert.equal(pen.transport.includedInCost, true); assert.equal(pen.marginFloorRate, null);
   const stk = priceSnapshot(p.stk, { sh: 'rond', w: 50, h: 50, mat: Object.keys(p.stk.hyp.pm)[0], fin: Object.keys(p.stk.hyp.fin)[0], cond: Object.keys(p.stk.hyp.cond)[0], q: 500 }).internal;
   assert.ok(stk.transport.ratePerKg > 0); assert.equal(typeof stk.optionFeesUnitHT, 'number');
   assert.deepEqual(Object.keys(quoteSnapshot(p.pen, { v: 'std', q: 1000 })).sort(), ['currency', 'estimated', 'product', 'promotion', 'quantity', 'regularUnitHT', 'scope', 'totalHT', 'totalTTC', 'unitHT', 'vat', 'version'].sort(), 'devis public : liste blanche inchangée');
@@ -90,4 +90,22 @@ test('API CRM : catalogue enrichi et photos réservées au jeton', async () => {
   // /price accepte le mode de transport publié.
   const price = await (await call('/api/crm/v1/price', { method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' }, body: JSON.stringify({ productId: 'pen', site: 'fr', quantity: 1000, configuration: { v: 'std', mode: 'sea' } }) })).json();
   assert.ok(price.unitHT > 0);
+});
+
+test('130 µm proposé ; sans prix usine à cette épaisseur, il reste à chiffrer', async () => {
+  const mylar = crmCatalogEntries(await published(), manifest).find((e) => e.id === 'mylar');
+  assert.deepEqual(mylar.thicknessOffer, [{ value: 0.1, priced: true }, { value: 0.12, priced: true }, { value: 0.13, priced: false }, { value: 0.14, priced: true }]);
+});
+
+test('produits génériques : transport compté dans le coût par défaut ; un ancien « non » enregistré ne compte plus, un choix fait exprès oui', async () => {
+  const saved = (h) => ({ DATA: { async get(name) { return name === 'cfg_g_pen' ? JSON.stringify({ data: { h, vei: [] }, version: 5 }) : null; }, async put() { throw new Error('écriture interdite'); } } });
+  const pen = async (h) => (await currentSnapshots(h === null ? env() : saved(h), ['pen'])).products.pen.snapshot;
+  assert.equal((await pen(null)).hyp.incTr, true, 'valeur par défaut');
+  assert.equal((await pen({ incTr: false, cost0: 1 })).hyp.incTr, true, 'ancien enregistrement : ancien défaut ignoré');
+  assert.equal((await pen({ incTr: false, incTrChoice: true, cost0: 1 })).hyp.incTr, false, 'choix fait exprès : gardé');
+  const p = await pen({ cost0: 1 }), d = priceSnapshot(p, { v: 'std', q: 1000, mode: 'air' });
+  assert.equal(d.internal.transport.includedInCost, true);
+  assert.ok(Math.abs(d.internal.factoryUnitHT + d.internal.fixedUnitHT + d.internal.transport.unitHT - d.internal.unitCostHT) < 1e-9, 'usine + frais fixes + transport = coût de revient');
+  const pub = quoteSnapshot(p, { v: 'std', q: 1000, mode: 'air' }), before = quoteSnapshot(await pen({ cost0: 1, incTr: false, incTrChoice: true }), { v: 'std', q: 1000, mode: 'air' });
+  assert.equal(pub.unitHT, before.unitHT, 'le prix de vente ne change pas : seul le coût de revient compte le transport');
 });

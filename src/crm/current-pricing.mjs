@@ -82,11 +82,11 @@ export function createCurrentPricing(docs,marketSeries){
  const zA=(sh,w,h)=>(w/10)*(zside(sh,w,h)/10);
  function zmatAdj(){const m=ZH.idx,ws=Object.values(m).reduce((a,x)=>a+x.w,0)||1;let s=0;for(const k in m)s+=m[k].w/ws*(m[k].cur/m[k].base-1);return Math.max(-.15,Math.min(.15,s*ZH.matShare))}
  function zmkFactor(){if(!ZH.useVei)return 1;const r=ZVEI.filter(v=>v.inc!==false&&v.taxVerified!==false&&v.price>0).map(v=>{const A=zA(v.sh,v.w,v.h),pm=ZH.pm[v.m]||ZH.pm.vin,sh=ZH.sh[v.sh]||ZH.sh.rond,b=zbase(A,v.q)*pm.c*sh.c;return b>0?v.price/b:null}).filter(x=>x&&isFinite(x)).sort((a,b)=>a-b);if(r.length<3)return 1;const md=r.length%2?r[(r.length-1)/2]:(r[r.length/2-1]+r[r.length/2])/2;return Math.max(.6,Math.min(1.6,md))}
- function cleanG(id,d){const D=gdef(id),o={p0:D.p0,q0:D.q0,b:GB0[id]!=null?GB0[id]:D.b,moq:D.moq,sku:D.sku,wg:D.wg,over:.05,cost0:0,bcr:.7,fixed:0,incTr:false,mS:.3,matOn:false,matShare:.5,mode:'air',vars:[{id:'std',n:D.vn,c:1,cc:1}],notes:{},idx:{},modes:JSON.parse(JSON.stringify(DEF.modes))};
+ function cleanG(id,d){const D=gdef(id),o={p0:D.p0,q0:D.q0,b:GB0[id]!=null?GB0[id]:D.b,moq:D.moq,sku:D.sku,wg:D.wg,over:.05,cost0:0,bcr:.7,fixed:0,incTr:true,incTrChoice:false,mS:.3,matOn:false,matShare:.5,mode:'air',vars:[{id:'std',n:D.vn,c:1,cc:1}],notes:{},idx:{},modes:JSON.parse(JSON.stringify(DEF.modes))};
  GIDX[D.ix].forEach(x=>o.idx[x[0]]={n:x[1],base:100,cur:100,w:x[2],auto:false});
  if(!d||typeof d!='object')return o;
  const R={p0:[.001,1e5],q0:[1,1e7],b:[0,.8],moq:[1,1e6],sku:[1,500],wg:[0,50000],over:[0,1],cost0:[0,1e5],bcr:[0,1.5],fixed:[0,1e5],mS:[0,.9],matShare:[0,1]};
- for(const k in R)o[k]=num(d[k],o[k],R[k][0],R[k][1]);o.incTr=d.incTr===true;o.matOn=d.matOn===true;
+ for(const k in R)o[k]=num(d[k],o[k],R[k][0],R[k][1]);o.incTrChoice=d.incTrChoice===true;o.incTr=o.incTrChoice?d.incTr===true:true;o.matOn=d.matOn===true;
  if(Array.isArray(d.vars)){const v=d.vars.slice(0,30).filter(x=>x&&typeof x=='object').map((x,i)=>({id:/^[\w-]{1,20}$/.test(x.id)?x.id:'v'+i,n:str(x.n,60)||'Variante',c:num(x.c,1,.05,20),cc:num(x.cc,1,.05,20)}));if(v.length)o.vars=v}
  if(d.notes&&typeof d.notes=='object')for(const k of Object.keys(d.notes).slice(0,60))o.notes[k.slice(0,20)]=str(d.notes[k],80);
  if(d.idx&&typeof d.idx=='object')for(const k in o.idx){const m=d.idx[k];if(!m||typeof m!='object')continue;o.idx[k].base=num(m.base,100,1,1e7);o.idx[k].cur=num(m.cur,100,1,1e7);o.idx[k].w=num(m.w,o.idx[k].w,0,1);o.idx[k].auto=m.auto===true}
