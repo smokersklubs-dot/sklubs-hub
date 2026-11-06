@@ -4,7 +4,8 @@
 // - Authentification : « Authorization: Bearer <CRM_API_TOKEN> », comparée à durée constante, AVANT la porte Basic Auth.
 // - Aucune écriture : ni document de tarif, ni KV, ni stockage de l'acteur (lecture stricte via readOnlyDocument).
 // - Aucun calcul dupliqué : le prix vient de priceSnapshot() (même moteur que /api/public/quote).
-import {priceSnapshot,catalogEntries,readOnlyDocument} from './public-pricing.mjs';
+import {priceSnapshot,readOnlyDocument} from './public-pricing.mjs';
+import {crmCatalogEntries} from './crm-catalog.mjs';
 import {currentSnapshots} from './current-snapshots.mjs';
 import {createCampaignTools,PRODUCT_IDS} from './campaigns.mjs';
 
@@ -70,9 +71,16 @@ export async function crmApiRoute(request,env,url,now=Date.now()){
    if(request.method!=='GET')return json({error:'méthode'},405,{Allow:'GET'});
    const site=url.searchParams.get('site')||'fr';if(!SITES.includes(site))return json({error:'site requis (fr ou com)'},400);
    const current=await currentSnapshots(env),entries=Object.values(current.products);
-   const products=catalogEntries(Object.fromEntries(entries.map(e=>[e.snapshot.product,e.snapshot]))).map(p=>{const e=current.products[p.id];return {...p,documentVersion:e.documentVersion,priceBasis:e.savedDocuments.length?'enregistré dans le hub':'valeurs par défaut du hub'}});
+   // Catalogue enrichi réservé au CRM (crm-catalog.mjs) : transport et délais, TVA, quantités, images, matières, options.
+   const products=crmCatalogEntries(Object.fromEntries(entries.map(e=>[e.snapshot.product,e.snapshot])),env.IMAGE_MANIFEST||null).map(p=>{const e=current.products[p.id];return {...p,documentVersion:e.documentVersion,priceBasis:e.savedDocuments.length?'enregistré dans le hub':'valeurs par défaut du hub'}});
    return json({site,currency:'EUR',scope:{id:'default',currency:'EUR'},source:'hub-prix-en-cours',publication:{documentVersion:current.documentVersion},products,unavailable:current.unreadable});
   }
+  // Photos du hub pour le CRM (même jeton) : le CRM ne peut pas lire /img/… protégé par le mot de passe du hub.
+  {const m=/^image\/(mylar|produits)\/([a-z0-9_]{1,60})\.jpg$/.exec(route);
+   if(m){if(request.method!=='GET')return json({error:'méthode'},405,{Allow:'GET'});
+    const bytes=env.IMAGE?await env.IMAGE(m[1],m[2]):null;
+    if(!bytes)return json({error:'image introuvable'},404);
+    return new Response(bytes,{status:200,headers:{'Content-Type':'image/jpeg','Cache-Control':'private, max-age=86400','X-Content-Type-Options':'nosniff'}});}}
   if(route==='price'){
    if(request.method!=='POST')return json({error:'méthode'},405,{Allow:'POST'});
    if(!(request.headers.get('Content-Type')||'').startsWith('application/json'))return json({error:'Content-Type application/json requis'},415);
