@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { currentSnapshots } from '../src/crm/current-snapshots.mjs';
 import { catalogEntries, priceSnapshot, quoteSnapshot } from '../src/crm/public-pricing.mjs';
 import { crmCatalogEntries, MYLAR_QUANTITIES } from '../src/crm/crm-catalog.mjs';
-import { crmApiRoute, resetCrmRateLimits } from '../src/crm/crm-api.mjs';
+import { crmApiRoute, resetCrmRateLimits, RATE_MAX } from '../src/crm/crm-api.mjs';
 
 const TOKEN = 'jeton-de-test-'.repeat(4);
 const manifest = JSON.parse(readFileSync(new URL('../public/img/manifest.json', import.meta.url), 'utf8'));
@@ -108,4 +108,15 @@ test('produits génériques : transport compté dans le coût par défaut ; un a
   assert.ok(Math.abs(d.internal.factoryUnitHT + d.internal.fixedUnitHT + d.internal.transport.unitHT - d.internal.unitCostHT) < 1e-9, 'usine + frais fixes + transport = coût de revient');
   const pub = quoteSnapshot(p, { v: 'std', q: 1000, mode: 'air' }), before = quoteSnapshot(await pen({ cost0: 1, incTr: false, incTrChoice: true }), { v: 'std', q: 1000, mode: 'air' });
   assert.equal(pub.unitHT, before.unitHT, 'le prix de vente ne change pas : seul le coût de revient compte le transport');
+});
+
+test('limite du CRM authentifié : un commercial qui clique vite n’est pas bloqué ; au-delà de la limite, 429', async () => {
+  resetCrmRateLimits();
+  const e = env(), now = Date.now(), auth = { Authorization: 'Bearer ' + TOKEN };
+  const call = () => crmApiRoute(new Request('http://hub.internal/api/crm/v1/catalog?site=fr', { headers: auth }), e, new URL('http://hub.internal/api/crm/v1/catalog?site=fr'), now);
+  assert.equal(RATE_MAX, 600);
+  for (let i = 0; i < 120; i++) assert.equal((await call()).status, 200, 'appel ' + (i + 1));
+  for (let i = 120; i < RATE_MAX; i++) await call();
+  assert.equal((await call()).status, 429);
+  resetCrmRateLimits();
 });

@@ -12,6 +12,9 @@ try { manifest = JSON.parse(readFileSync(path.join(PUBLIC_IMG, 'manifest.json'),
 // Lecture d'une photo du hub (dossier et nom déjà validés par la route) ; null si absente.
 const readImage = async (dir, name) => { try { return readFileSync(path.join(PUBLIC_IMG, dir, name + '.jpg')); } catch { return null; } };
 
+// Photos du hub pour l'API CRM (aussi utilisées par le serveur de recette local).
+export const crmImages = { IMAGE_MANIFEST: manifest, IMAGE: readImage };
+
 export function crmEnv(pool, schema) {
   return { CRM_API_TOKEN: process.env.CRM_API_TOKEN, DATA: makeKv(pool, schema), IMAGE_MANIFEST: manifest, IMAGE: readImage };
 }

@@ -10,7 +10,10 @@ import {currentSnapshots} from './current-snapshots.mjs';
 import {createCampaignTools,PRODUCT_IDS} from './campaigns.mjs';
 
 const campaigns=createCampaignTools(),SITES=['fr','com'],PREFIX='/api/crm/v1/';
-const MAX_BODY=4000,RATE_WINDOW_MS=60000,RATE_MAX=60,FAIL_WINDOW_MS=900000,FAIL_MAX=10;
+// 600 appels par minute pour le CRM authentifié (6 novembre 2026) : un changement de configuration coûte 8 appels
+// (prix + 7 paliers) et tous les comptes du CRM partagent la même IP serveur ; 60 saturait dès le 8e clic.
+// Les jetons refusés restent limités à 10 par quart d'heure (FAIL_MAX), avant tout comptage.
+export const MAX_BODY=4000,RATE_WINDOW_MS=60000,RATE_MAX=600,FAIL_WINDOW_MS=900000,FAIL_MAX=10;
 // Limiteur best effort, en mémoire de l'isolat (aucune écriture KV). Un binding Cloudflare Rate Limiting
 // optionnel (env.CRM_RATE_LIMITER) est utilisé en plus s'il est configuré.
 const hits=new Map(),fails=new Map();

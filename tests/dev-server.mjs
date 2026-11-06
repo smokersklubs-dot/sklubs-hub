@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { allowedName, validDoc, MAX_BODY } from '../src/docs.js';
-import { handleCrm } from '../src/crm/route.js';
+import { handleCrm, crmImages } from '../src/crm/route.js';
 
 const PORT = Number(process.argv[2] || 4199);
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -15,7 +15,7 @@ const chartJs = readFileSync(path.join(PUBLIC, 'chart.js'));
 const TOKEN = 'jeton-de-recette-locale-sans-valeur-' + 'x'.repeat(12);
 const docs = new Map(); // name -> { data, version }
 
-const env = { CRM_API_TOKEN: TOKEN, DATA: { async get(name) { const d = docs.get(name); return d ? JSON.stringify(d) : null; }, async put() { throw new Error('écriture interdite'); } } };
+const env = { CRM_API_TOKEN: TOKEN, ...crmImages, DATA: { async get(name) { const d = docs.get(name); return d ? JSON.stringify(d) : null; }, async put() { throw new Error('écriture interdite'); } } };
 const json = (res, status, obj) => { res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }); res.end(JSON.stringify(obj)); };
 const body = (req) => new Promise((resolve, reject) => { const c = []; let n = 0; req.on('data', (x) => { n += x.length; if (n > MAX_BODY) reject(Object.assign(new Error('trop gros'), { status: 413 })); else c.push(x); }); req.on('end', () => resolve(Buffer.concat(c).toString('utf8'))); req.on('error', reject); });
 
