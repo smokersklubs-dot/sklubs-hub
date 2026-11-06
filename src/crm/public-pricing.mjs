@@ -18,7 +18,16 @@ export function priceSnapshot(snapshot,configuration,campaign=null){
  // Liste blanche de sortie : aucun coût, paramètre usine, prix matière ou taux de marge.
  const quote={product:snapshot.product,scope:snapshot.scope,currency:'EUR',quantity:p.q,unitHT:result.price,totalHT:Math.round(result.price*p.q*100)/100,totalTTC:Math.round(result.price*p.q*(1+snapshot.shared.vat)*100)/100,vat:snapshot.shared.vat,regularUnitHT:regular,promotion:campaign?{id:campaign.id,title:campaign.title,end:campaign.end}:null,estimated:!!calculated.estimated,version:snapshot.approvedAt};
  const unitCost=result.known===false?null:(result.cout??result.cb??null);
- return {quote,configuration:calculated.configuration,internal:{unitCostHT:Number.isFinite(unitCost)?unitCost:null,marginRate:Number.isFinite(unitCost)?(result.price-unitCost)/result.price:null,marginTotalHT:Number.isFinite(unitCost)?(result.price-unitCost)*p.q:null,manualRule:!!result.manual,interpolatedRule:!!result.interpolated,basePriceHT:result.basePrice??regular}};
+ return {quote,configuration:calculated.configuration,internal:{unitCostHT:Number.isFinite(unitCost)?unitCost:null,marginRate:Number.isFinite(unitCost)?(result.price-unitCost)/result.price:null,marginTotalHT:Number.isFinite(unitCost)?(result.price-unitCost)*p.q:null,manualRule:!!result.manual,interpolatedRule:!!result.interpolated,basePriceHT:result.basePrice??regular,...costDetail(snapshot,p,result)}};
+}
+// Détail interne du coût (CRM privé, jamais dans `quote`) : transport au kilo, poids, part usine, frais fixes, plancher, marge minimale.
+function costDetail(snapshot,p,r){
+ const fin=v=>Number.isFinite(v)?v:null,h=snapshot.kind==='mylar'?(snapshot.shared||snapshot.hyp):snapshot.hyp,modes=h.modes||{},id=Object.hasOwn(modes,p.mode||'')?p.mode:Object.hasOwn(modes,h.mode||'')?h.mode:'air',m=modes[id]||{};
+ const known=snapshot.kind==='mylar'?true:r.known!==false,grams=snapshot.kind==='mylar'?r.w:r.wg;
+ const floorRate=snapshot.kind==='g'?null:(p.q>=h.qB?h.mB:h.mS);
+ return {transport:{mode:id,name:String(m.n||id),days:fin(Number(m.d)),ratePerKg:fin(r.rate),unitWeightKg:fin(grams/1000),totalKg:fin(r.totKg),unitHT:fin(r.tr),totalHT:fin(r.tr*p.q),includedInCost:snapshot.kind==='g'?!!h.incTr:true},
+  factoryUnitHT:known?fin(snapshot.kind==='g'?r.cost:r.usine):null,fixedUnitHT:fin(r.fx),optionFeesUnitHT:snapshot.kind==='stk'?fin(r.extra):null,
+  floorUnitHT:snapshot.kind==='g'||!known?null:fin(r.floor),marginFloorRate:fin(floorRate)};
 }
 export function quoteSnapshot(snapshot,configuration,campaign=null){return priceSnapshot(snapshot,configuration,campaign).quote;}
 // Configuration d'un palier personnalisé (clé du document) telle qu'attendue par /price ; null si la clé est inexploitable.

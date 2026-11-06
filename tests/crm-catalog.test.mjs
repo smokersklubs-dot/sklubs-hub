@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { currentSnapshots } from '../src/crm/current-snapshots.mjs';
-import { catalogEntries } from '../src/crm/public-pricing.mjs';
+import { catalogEntries, priceSnapshot, quoteSnapshot } from '../src/crm/public-pricing.mjs';
 import { crmCatalogEntries, MYLAR_QUANTITIES } from '../src/crm/crm-catalog.mjs';
 import { crmApiRoute, resetCrmRateLimits } from '../src/crm/crm-api.mjs';
 
@@ -21,7 +21,7 @@ test('Mylar : modes de transport avec délais, quantités, épaisseur, photos, m
   assert.deepEqual(mylar.quantityRange, { min: 200, max: 5000 });
   assert.ok(mylar.formats.length > 10);
   for (const f of mylar.formats) { assert.ok(f.thickness > 0, 'épaisseur de ' + f.ref); assert.match(f.image, /^mylar\/[a-z0-9_]+\.jpg$/); }
-  assert.deepEqual(mylar.materials.find((m) => m.id === 'MOPP/AL/PE'), { id: 'MOPP/AL/PE', name: 'Aluminium' });
+  assert.equal(mylar.materials.find((m) => m.id === 'MOPP/AL/PE').name, 'Aluminium');
   assert.ok(mylar.types.every((t) => t.formats > 0 && /^mylar\//.test(t.image)));
   assert.deepEqual(mylar.options, [], 'le hub ne modélise pas de finition Mylar séparée');
   assert.match(mylar.image, /^mylar\//);
@@ -39,11 +39,39 @@ test('stickers et produits génériques : options avec coefficient et frais fixe
   assert.ok(pen.modes.length >= 3);
 });
 
-test('aucun coût, aucune marge, aucun tarif au kilo ; le catalogue public reste inchangé', async () => {
-  const p = await published(), crm = JSON.stringify(crmCatalogEntries(p, manifest));
-  for (const key of ['cout', 'cost', 'marge', 'usine', 'rmb', '"t":[[', 'cc']) assert.equal(crm.includes('"' + key + '"') || crm.includes(key === '"t":[[' ? key : '\u0000'), false, 'aucune donnée interne : ' + key);
+test('bloc interne : transport au kilo, poids, frais fixes, marges minimales ; aucun taux RMB ni prix usine brut', async () => {
+  const p = await published(), entries = crmCatalogEntries(p, manifest), mylar = entries.find((e) => e.id === 'mylar'), stk = entries.find((e) => e.id === 'stk'), pen = entries.find((e) => e.id === 'pen');
+  assert.deepEqual(mylar.internal.transport.modes.find((m) => m.id === 'air').rates, [{ fromKg: 0, eurPerKg: 13.9 }, { fromKg: 25, eurPerKg: 12.5 }, { fromKg: 100, eurPerKg: 11 }, { fromKg: 250, eurPerKg: 10 }, { fromKg: 500, eurPerKg: 9 }]);
+  assert.deepEqual(mylar.internal.marginFloor, { small: 0.45, large: 0.35, largeFrom: 2000 });
+  assert.equal(mylar.internal.fixedCostPerOrderHT, 30);
+  assert.equal(stk.internal.transport.weight.gsm, 200);
+  assert.equal(pen.internal.transport.weight.unitWeightKg, 0.01575);
+  assert.equal(pen.internal.marginFloor, null, 'pas de plancher de marge dans le moteur des produits génériques');
+  assert.deepEqual(mylar.thicknesses, [0.1, 0.12, 0.14]);
+  assert.ok(mylar.materials.every((m) => m.description && m.thicknesses.length));
+  const crm = JSON.stringify(entries);
+  for (const key of ['rmb', 'mk', 'fx', 'secFx', 'usine', 'cost0', 'mats', 'idx', 'mkt']) assert.equal(crm.includes('"' + key + '"'), false, 'aucun paramètre usine : ' + key);
   const pub = JSON.stringify(catalogEntries(p));
-  for (const key of ['modes', 'thickness', 'factor', 'fixedFee', 'quantityRange', 'image']) assert.equal(pub.includes('"' + key + '"'), false, 'route publique sans champ CRM : ' + key);
+  for (const key of ['internal', 'modes', 'thickness', 'factor', 'fixedFee', 'quantityRange', 'image', 'eurPerKg']) assert.equal(pub.includes('"' + key + '"'), false, 'route publique sans champ CRM : ' + key);
+});
+
+test('prix détaillé (CRM privé) : transport au kilo cohérent, plancher, marge minimale ; le devis public ne change pas', async () => {
+  const p = await published();
+  const d = priceSnapshot(p.mylar, { t: p.mylar.rows[0].t, m: p.mylar.rows[0].m, L: p.mylar.rows[0].L, H: p.mylar.rows[0].H, G: p.mylar.rows[0].G || 0, q: 1000, mode: 'sea' });
+  const t = d.internal.transport;
+  assert.equal(t.mode, 'sea'); assert.equal(t.ratePerKg, 5.2); assert.equal(t.days, 40);
+  assert.ok(Math.abs(t.totalKg - t.unitWeightKg * 1000) < 1e-9);
+  assert.ok(Math.abs(t.unitHT - t.unitWeightKg * t.ratePerKg) < 1e-9);
+  assert.ok(Math.abs(d.internal.factoryUnitHT + d.internal.fixedUnitHT + t.unitHT - d.internal.unitCostHT) < 1e-9, 'usine + frais fixes + transport = coût de revient');
+  assert.equal(d.internal.marginFloorRate, 0.45);
+  assert.ok(d.internal.floorUnitHT <= d.quote.unitHT + 1e-9);
+  const air = priceSnapshot(p.mylar, { ...d.configuration, mode: 'air', q: 1000 }).internal.transport;
+  assert.ok(air.ratePerKg > t.ratePerKg, 'avion plus cher au kilo que bateau');
+  const pen = priceSnapshot(p.pen, { v: 'std', q: 1000, mode: 'air' }).internal;
+  assert.equal(pen.transport.unitWeightKg, 0.01575); assert.equal(pen.transport.includedInCost, false); assert.equal(pen.marginFloorRate, null);
+  const stk = priceSnapshot(p.stk, { sh: 'rond', w: 50, h: 50, mat: Object.keys(p.stk.hyp.pm)[0], fin: Object.keys(p.stk.hyp.fin)[0], cond: Object.keys(p.stk.hyp.cond)[0], q: 500 }).internal;
+  assert.ok(stk.transport.ratePerKg > 0); assert.equal(typeof stk.optionFeesUnitHT, 'number');
+  assert.deepEqual(Object.keys(quoteSnapshot(p.pen, { v: 'std', q: 1000 })).sort(), ['currency', 'estimated', 'product', 'promotion', 'quantity', 'regularUnitHT', 'scope', 'totalHT', 'totalTTC', 'unitHT', 'vat', 'version'].sort(), 'devis public : liste blanche inchangée');
 });
 
 test('API CRM : catalogue enrichi et photos réservées au jeton', async () => {

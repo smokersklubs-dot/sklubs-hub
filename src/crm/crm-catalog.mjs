@@ -2,8 +2,10 @@
 // Jamais servi aux routes publiques des sites (/api/public/catalog garde catalogEntries tel quel).
 // Ajoute ce que le hub sait déjà et que le CRM ne recevait pas : modes de transport et délais, TVA, échelle et plage
 // de quantités, épaisseur et photo de chaque format Mylar, libellés des matières, types de sachet avec photo,
-// coefficients et frais fixes des options stickers, photo de chaque produit. Aucun coût usine, aucune marge, aucun tarif
-// de transport au kilo : ces données restent internes au hub.
+// coefficients et frais fixes des options stickers, photo de chaque produit.
+// Bloc `internal` (demande de Lemexx du 6 novembre 2026, route CRM privée seulement) : tarifs de transport au kilo par
+// mode, poids, frais fixes par commande et marges minimales du hub. Jamais servi aux sites ; le CRM le réserve au droit
+// finance. Toujours exclus : taux RMB, prix usine bruts, indices matière.
 import {catalogEntries} from './public-pricing.mjs';
 
 export const MYLAR_QUANTITIES=[200,300,500,1000,2000,3000,5000];
@@ -13,6 +15,8 @@ export const MYLAR_RANGE={min:200,max:5000};
 const MAX_Q=10_000_000;
 // Mêmes libellés que l'écran du hub (public/index.html : MAT et PHT).
 export const MATERIAL_LABELS={'MOPP/VMPET/PE':'Métallisé','MOPP/AL/PE':'Aluminium'};
+// Composition en clair (couches extérieure / barrière / intérieure).
+export const MATERIAL_DESCRIPTIONS={'MOPP/VMPET/PE':'Polypropylène mat (MOPP) · PET métallisé (VMPET) · polyéthylène (PE)','MOPP/AL/PE':'Polypropylène mat (MOPP) · aluminium (AL) · polyéthylène (PE)'};
 export const TYPE_PHOTOS={'Doypack à zip':'doypack_zip','Best-seller KHH':'doypack_zip','Doypack sans zip':'doypack_nozip','3 soudures à zip (plat)':'flat3_zip','3 soudures ouv. bas (sans zip)':'flat3_open','8 soudures à zip (fond plat)':'flatbottom','Doypack diamant à zip':'diamond'};
 const GENERIC_PHOTOS=new Set(['badge','beanie','bottle','bucket','businesscard','cap','lanyard','patch','pen','pin','sock','tote','tshirt']);
 
@@ -33,19 +37,31 @@ function productImage(id,manifest){
  if(id==='stk')return 'produits/sticker_set.jpg';
  return GENERIC_PHOTOS.has(id)?`produits/${id}.jpg`:null;
 }
+/** Tarifs de transport au kilo (paliers de poids total), par mode : même table que le moteur (rateFor / grate). */
+export function transportRates(modes){return Object.entries(modes||{}).map(([id,m])=>({id,name:String(m?.n||id),rates:[...(Array.isArray(m?.t)?m.t:[])].filter(r=>Array.isArray(r)&&Number.isFinite(Number(r[0]))&&Number.isFinite(Number(r[1]))).sort((a,b)=>a[0]-b[0]).map(([k,v])=>({fromKg:Number(k),eurPerKg:Number(v)}))}))}
+const num=v=>Number.isFinite(Number(v))?Number(v):null;
+/** Données internes du tarif (CRM privé) : transport au kilo, poids, frais fixes, marges minimales. */
+function internalTariff(kind,s){
+ if(kind==='mylar'){const H=s.shared||s.hyp;return {transport:{modes:transportRates(H.modes),includedInCost:true,weight:{basis:'format',densityGPerCm3:num(H.dens),overweight:num(H.over)}},fixedCostPerOrderHT:num(H.fixed),marginFloor:{small:num(H.mS),large:num(H.mB),largeFrom:num(H.qB)}};}
+ const h=s.hyp||{};
+ if(kind==='stk')return {transport:{modes:transportRates(h.modes),includedInCost:true,weight:{basis:'surface',gsm:num(h.gsm),overweight:num(h.over),waste:num(h.chute)}},fixedCostPerOrderHT:num(h.fixed),marginFloor:{small:num(h.mS),large:num(h.mB),largeFrom:num(h.qB)}};
+ // Produits génériques : prix selon la courbe du hub, sans plancher de marge dans le moteur ; transport compté dans le coût seulement si incTr.
+ return {transport:{modes:transportRates(h.modes),includedInCost:!!h.incTr,weight:{basis:'piece',unitWeightKg:Number.isFinite(Number(h.wg))?Math.round(Number(h.wg)*(1+(Number(h.over)||0))*1000)/1e6:null}},fixedCostPerOrderHT:num(h.fixed),marginFloor:null};
+}
 const choice=(dict,withFee=false)=>Object.entries(dict||{}).map(([id,v])=>({id,name:String(v?.n||id),factor:Number.isFinite(Number(v?.c))?Number(v.c):1,...(withFee?{fixedFee:Number.isFinite(Number(v?.fix))?Number(v.fix):0}:{})}));
 
 export function crmCatalogEntries(published,manifest=null){
  return catalogEntries(published).map(entry=>{
   const s=published[entry.id],hyp=s?.hyp||{};
-  const extra={vatRate:Number.isFinite(Number(s?.shared?.vat))?Number(s.shared.vat):null,modes:transportModes(hyp),image:productImage(entry.id,manifest),...quantityPlan(entry.kind,entry.minimum)};
+  const extra={internal:internalTariff(entry.kind,s),vatRate:Number.isFinite(Number(s?.shared?.vat))?Number(s.shared.vat):null,modes:transportModes(hyp),image:productImage(entry.id,manifest),...quantityPlan(entry.kind,entry.minimum)};
   if(entry.kind==='mylar'){
    const th=new Map((s.rows||[]).map(r=>[r.ref,Number(r.th)]));
    const types=[...new Set(entry.formats.map(f=>f.t))];
    return {...entry,...extra,
     formats:entry.formats.map(f=>({...f,thickness:Number.isFinite(th.get(f.ref))?th.get(f.ref):null,image:manifest?.mylar_par_format?.[f.ref]??manifest?.types?.[TYPE_PHOTOS[f.t]||'doypack_zip']?.[0]??null})),
     types:types.map(t=>({id:t,name:t,image:manifest?.types?.[TYPE_PHOTOS[t]||'doypack_zip']?.[0]??null,formats:entry.formats.filter(f=>f.t===t).length})),
-    materials:[...new Set(entry.formats.map(f=>f.m))].map(m=>({id:m,name:MATERIAL_LABELS[m]||m})),
+    materials:[...new Set(entry.formats.map(f=>f.m))].map(m=>({id:m,name:MATERIAL_LABELS[m]||m,description:MATERIAL_DESCRIPTIONS[m]||null,thicknesses:[...new Set(entry.formats.filter(f=>f.m===m).map(f=>th.get(f.ref)).filter(Number.isFinite))].sort((a,b)=>a-b)})),
+    thicknesses:[...new Set([...th.values()].filter(Number.isFinite))].sort((a,b)=>a-b),
     // Le hub ne modélise pas de finition Mylar séparée (mat, brillant, fenêtre) : le zip fait partie du type de sachet.
     options:[]};
   }
