@@ -2,6 +2,7 @@
 // env.DATA (KV Cloudflare) est simulé par PostgreSQL (voir ../kv.js).
 import { crmApiRoute } from './crm-api.mjs';
 import { makeKv } from '../kv.js';
+import { makeProposalStore } from '../proposals.js';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -16,7 +17,7 @@ const readImage = async (dir, name) => { try { return readFileSync(path.join(PUB
 export const crmImages = { IMAGE_MANIFEST: manifest, IMAGE: readImage };
 
 export function crmEnv(pool, schema) {
-  return { CRM_API_TOKEN: process.env.CRM_API_TOKEN, DATA: makeKv(pool, schema), IMAGE_MANIFEST: manifest, IMAGE: readImage };
+  return { CRM_API_TOKEN: process.env.CRM_API_TOKEN, DATA: makeKv(pool, schema), PROPOSALS: makeProposalStore(pool, schema), IMAGE_MANIFEST: manifest, IMAGE: readImage };
 }
 
 // Convertit la requête Node en Request standard, appelle le module, renvoie la réponse. Faux si la route est inconnue.

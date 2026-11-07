@@ -1,4 +1,6 @@
-// API privée serveur-à-serveur pour le CRM SKLUBS OS (lecture seule).
+// API privée serveur-à-serveur pour le CRM SKLUBS OS (lecture des tarifs).
+// - Seule écriture (7 novembre 2026) : déposer ou retirer une PROPOSITION de tarif de l'agent (price-proposals),
+//   gardée en attente ; aucun tarif ne change avant l'acceptation de Lemexx dans la page du hub (src/proposals.js).
 // - Prix servis : les prix « en cours » du hub (documents enregistrés, voir current-snapshots.mjs), sans étape de
 //   publication ni de validation, indépendants de cfg_publications. Les brouillons non enregistrés ne sont jamais lus.
 // - Authentification : « Authorization: Bearer <CRM_API_TOKEN> », comparée à durée constante, AVANT la porte Basic Auth.
@@ -8,6 +10,7 @@ import {priceSnapshot,readOnlyDocument} from './public-pricing.mjs';
 import {crmCatalogEntries} from './crm-catalog.mjs';
 import {currentSnapshots} from './current-snapshots.mjs';
 import {createCampaignTools,PRODUCT_IDS} from './campaigns.mjs';
+import {validateProposalInput,buildProposal,addProposal,crmView} from './price-proposals.mjs';
 
 const campaigns=createCampaignTools(),SITES=['fr','com'],PREFIX='/api/crm/v1/';
 // 600 appels par minute pour le CRM authentifié (6 novembre 2026) : un changement de configuration coûte 8 appels
@@ -103,6 +106,29 @@ export async function crmApiRoute(request,env,url,now=Date.now()){
     computedAt:new Date(now).toISOString()};
    if(includeInternal)out.internal=detail.internal;// coût/marge : CRM privé uniquement, jamais exposé par les routes publiques
    return json(out);
+  }
+  // Propositions de tarif de l'agent (en attente de Lemexx dans le hub) : dépôt, suivi, retrait.
+  if(route==='price-proposals'||/^price-proposals\/[a-f0-9-]{36}\/withdraw$/.test(route)){
+   const store=env.PROPOSALS;if(!store)return json({error:'Propositions de tarif indisponibles sur ce hub.'},503);
+   if(route==='price-proposals'&&request.method==='GET'){const items=await store.list();return json({items:items.slice(0,50).map(crmView)})}
+   if(request.method!=='POST')return json({error:'méthode'},405,{Allow:'GET, POST'});
+   if(!(request.headers.get('Content-Type')||'').startsWith('application/json'))return json({error:'Content-Type application/json requis'},415);
+   const raw=await request.text();if(new TextEncoder().encode(raw).byteLength>MAX_BODY)return json({error:'taille'},413);
+   let body;try{body=JSON.parse(raw)}catch{return json({error:'JSON invalide'},400)}
+   if(route!=='price-proposals'){
+    const id=route.split('/')[1];
+    try{const p=await store.mutate(list=>{const i=list.findIndex(x=>x.id===id);if(i<0)throw Object.assign(new Error('Proposition introuvable.'),{status:404});if(list[i].status!=='pending')throw Object.assign(new Error('Proposition déjà traitée dans le hub.'),{status:409});list[i]={...list[i],status:'withdrawn',decidedAt:new Date(now).toISOString(),decidedBy:'crm'};return {items:list,result:list[i]}});return json({proposal:crmView(p)})}
+    catch(e){return json({error:e.message},e.status||500)}
+   }
+   const input=validateProposalInput(body);if(input.error)return json({error:input.error},422);
+   const current=await currentSnapshots(env,[input.value.productId]),entry=current.products[input.value.productId];
+   if(!entry)return json({error:'Tarif du hub illisible pour ce produit.'},503);
+   const standardQuantities=crmCatalogEntries({[input.value.productId]:entry.snapshot},null)[0]?.quantities||[];
+   try{
+    const proposal=buildProposal(entry.snapshot,input.value,{id:crypto.randomUUID(),now:new Date(now),standardQuantities});
+    await store.mutate(list=>({items:addProposal(list,proposal),result:null}));
+    return json({proposal:crmView(proposal)},201);
+   }catch(e){if(e.status)return json({error:e.message},e.status);throw e}
   }
   return json({error:'inconnu'},404);
  }catch(error){console.warn('crm-api',String(error).slice(0,200));return json({error:'Hub indisponible'},500)}

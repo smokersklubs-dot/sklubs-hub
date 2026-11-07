@@ -3265,4 +3265,56 @@ th{font:600 11px var(--f);letter-spacing:.02em;text-transform:none}
 *{scrollbar-width:thin;scrollbar-color:rgba(120,120,128,.4) transparent}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{transition-duration:.01ms!important;animation-duration:.01ms!important;scroll-behavior:auto!important}}
 </style>
+<style>
+#skp-btn{position:fixed;right:16px;bottom:16px;z-index:9999;background:#FF6A00;color:#fff;border:0;border-radius:999px;padding:10px 16px;font:600 14px system-ui;box-shadow:0 6px 20px rgba(0,0,0,.18);cursor:pointer}
+#skp-panel{position:fixed;right:16px;bottom:64px;z-index:9999;width:min(440px,calc(100vw - 32px));max-height:70vh;overflow:auto;background:#fff;color:#111;border:1px solid #f5c3a7;border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.2);padding:14px;font:14px system-ui}
+#skp-panel h3{margin:0 0 4px;font-size:15px}#skp-panel .skp-note{margin:0 0 10px;color:#6b7280;font-size:12px}
+.skp-item{border-top:1px solid #f5d9c8;padding:10px 0;display:grid;gap:4px}.skp-item b{font-weight:600}.skp-item small{color:#6b7280}
+.skp-prices{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}.skp-prices s{color:#6b7280}.skp-prices strong{color:#b3410a;font-size:16px}
+.skp-warn{color:#b42318;font-size:12px}.skp-actions{display:flex;gap:8px;margin-top:4px}
+.skp-actions button{border-radius:8px;padding:7px 12px;font:600 13px system-ui;cursor:pointer;border:1px solid #f5c3a7;background:#fff;color:#111}
+.skp-actions button.skp-ok{background:#FF6A00;border-color:#FF6A00;color:#fff}.skp-status{font-size:12px;font-weight:600;color:#067647}
+</style>
+<button type="button" id="skp-btn" hidden aria-controls="skp-panel" aria-expanded="false"></button>
+<section id="skp-panel" hidden aria-label="Propositions de tarif de l’agent"></section>
+<script>
+// Propositions de tarif de l'agent du CRM (7 novembre 2026) : rien ne change avant « Accepter ».
+(function(){
+ const btn=document.getElementById('skp-btn'),panel=document.getElementById('skp-panel');
+ const eur=v=>v==null?'—':Number(v).toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:3})+' € HT';
+ const el=(tag,cls,text)=>{const e=document.createElement(tag);if(cls)e.className=cls;if(text!=null)e.textContent=text;return e};
+ const labels={pending:'En attente',accepted:'Acceptée',rejected:'Refusée',withdrawn:'Retirée par le CRM'};
+ let items=[],message='';
+ async function load(){try{const r=await fetch('/api/proposals',{cache:'no-store',credentials:'same-origin'});if(!r.ok)return;items=(await r.json()).items||[];render()}catch{}}
+ async function decide(id,decision,button){
+  button.disabled=true;
+  try{const r=await fetch('/api/proposals/decide',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-SK':'1'},body:JSON.stringify({id,decision})});
+   const d=await r.json().catch(()=>({}));
+   message=r.ok?(decision==='accept'?'Prix appliqué dans le hub ('+eur(d.proposal&&d.proposal.appliedUnitHT)+'). Recharge la page pour le voir dans le tableau.':'Proposition refusée : aucun tarif modifié.'):(d.error||'Geste refusé.');
+  }catch{message='Hub injoignable : rien n’a été modifié.'}
+  await load();
+ }
+ function render(){
+  const pending=items.filter(p=>p.status==='pending');
+  btn.hidden=!pending.length&&!message;btn.textContent=pending.length?pending.length+' proposition'+(pending.length>1?'s':'')+' de l’agent':'Propositions de l’agent';
+  panel.replaceChildren();
+  panel.append(el('h3',null,'Propositions de tarif de l’agent'),el('p','skp-note','Proposées depuis le CRM. Aucun tarif ne change avant « Accepter ». Le prix plancher (marge minimale) reste appliqué.'));
+  if(message){const m=el('p','skp-status',message);panel.append(m);if(/Recharge/.test(message)){const b=el('button',null,'Recharger la page');b.type='button';b.onclick=()=>location.reload();const a=el('div','skp-actions');a.append(b);panel.append(a)}}
+  if(!pending.length)panel.append(el('p','skp-note','Aucune proposition en attente.'));
+  for(const p of [...pending,...items.filter(x=>x.status!=='pending').slice(0,5)]){
+   const it=el('article','skp-item');
+   it.append(el('b',null,p.productName+' · '+p.label),el('small',null,p.quantity.toLocaleString('fr-FR')+' ex.'+(p.newTier?' · nouveau palier':'')+' · '+new Date(p.createdAt).toLocaleString('fr-FR')+' · demandé par '+((p.author&&p.author.name)||'CRM')));
+   const pr=el('div','skp-prices'),now=p.status==='pending'?(p.liveUnitHT??p.currentUnitHT):p.currentUnitHT;
+   pr.append(el('span',null,'Actuel :'),el('s',null,eur(now)),el('span',null,'→ proposé :'),el('strong',null,eur(p.proposedUnitHT)));it.append(pr);
+   if(p.floorUnitHT!=null&&p.proposedUnitHT<p.floorUnitHT)it.append(el('span','skp-warn','Sous le prix plancher : le hub appliquera '+eur(Math.ceil(p.floorUnitHT*1000-1e-9)/1000)+'.'));
+   it.append(el('small',null,'Raison : '+p.reason));
+   if(p.status==='pending'){const a=el('div','skp-actions'),ok=el('button','skp-ok','Accepter'),no=el('button',null,'Refuser');ok.type=no.type='button';ok.onclick=()=>decide(p.id,'accept',ok);no.onclick=()=>decide(p.id,'reject',no);a.append(ok,no);it.append(a)}
+   else it.append(el('span','skp-status',labels[p.status]+(p.appliedUnitHT!=null?' · appliqué '+eur(p.appliedUnitHT):'')));
+   panel.append(it);
+  }
+ }
+ btn.onclick=()=>{panel.hidden=!panel.hidden;btn.setAttribute('aria-expanded',String(!panel.hidden));if(!panel.hidden)load()};
+ load();setInterval(()=>{if(document.visibilityState==='visible')load()},60000);
+})();
+</script>
 </body></html>
