@@ -3,7 +3,7 @@
 import crypto from 'node:crypto';
 import { createPriceRules } from './crm/price-rules.mjs';
 
-export const DOCS = ['cfg_hyp', 'cfg_veille', 'cfg_gal', 'cfg_zhyp', 'cfg_zveille', 'cfg_zgal',
+export const DOCS = ['cfg_hyp', 'cfg_mylar_supplements', 'cfg_veille', 'cfg_gal', 'cfg_zhyp', 'cfg_zveille', 'cfg_zgal',
   'cfg_watch_manual', 'cfg_promotions', 'cfg_publications'];
 export const PRODUCTS = ['mylar', 'stk', 'badge', 'pin', 'bottle', 'pen', 'lanyard', 'patch',
   'tshirt', 'cap', 'beanie', 'bucket', 'sock', 'tote'];

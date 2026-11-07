@@ -6,6 +6,8 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { allowedName, validDoc, MAX_BODY } from '../src/docs.js';
 import { handleCrm, crmImages } from '../src/crm/route.js';
+import { publicMylarRoute, publicMylarQuoteRoute } from '../src/public-mylar.js';
+const sendJsonX = (res, status, obj, extra = {}) => { res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', ...extra }); res.end(JSON.stringify(obj)); };
 
 const PORT = Number(process.argv[2] || 4199);
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -22,6 +24,8 @@ const body = (req) => new Promise((resolve, reject) => { const c = []; let n = 0
 http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, 'http://localhost');
+    // Routes publiques du configurateur bags.sklubs.fr (grille et prix d'une configuration), comme le serveur réel.
+    if (await publicMylarRoute(req, res, url, env, sendJsonX) || await publicMylarQuoteRoute(req, res, url, env, sendJsonX)) return;
     if (url.pathname.startsWith('/api/crm/v1/')) {
       let txt = ''; if (req.method === 'POST') txt = await body(req);
       if (await handleCrm(req, res, url, txt, env)) return;
