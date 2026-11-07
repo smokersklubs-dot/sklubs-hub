@@ -7,6 +7,8 @@ import path from 'node:path';
 import { allowedName, validDoc, MAX_BODY } from '../src/docs.js';
 import { handleCrm, crmImages } from '../src/crm/route.js';
 import { publicMylarRoute, publicMylarQuoteRoute } from '../src/public-mylar.js';
+import { memoryProposalStore } from '../src/crm/price-proposals.mjs';
+import { proposalsAdminRoute } from '../src/proposals.js';
 const sendJsonX = (res, status, obj, extra = {}) => { res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', ...extra }); res.end(JSON.stringify(obj)); };
 
 const PORT = Number(process.argv[2] || 4199);
@@ -17,7 +19,7 @@ const chartJs = readFileSync(path.join(PUBLIC, 'chart.js'));
 const TOKEN = 'jeton-de-recette-locale-sans-valeur-' + 'x'.repeat(12);
 const docs = new Map(); // name -> { data, version }
 
-const env = { CRM_API_TOKEN: TOKEN, ...crmImages, DATA: { async get(name) { const d = docs.get(name); return d ? JSON.stringify(d) : null; }, async put() { throw new Error('écriture interdite'); } } };
+const env = { CRM_API_TOKEN: TOKEN, ...crmImages, PROPOSALS: memoryProposalStore(), DATA: { async get(name) { const d = docs.get(name); return d ? JSON.stringify(d) : null; }, async put() { throw new Error('écriture interdite'); } } };
 const json = (res, status, obj) => { res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }); res.end(JSON.stringify(obj)); };
 const body = (req) => new Promise((resolve, reject) => { const c = []; let n = 0; req.on('data', (x) => { n += x.length; if (n > MAX_BODY) reject(Object.assign(new Error('trop gros'), { status: 413 })); else c.push(x); }); req.on('end', () => resolve(Buffer.concat(c).toString('utf8'))); req.on('error', reject); });
 
@@ -29,6 +31,18 @@ http.createServer(async (req, res) => {
     if (url.pathname.startsWith('/api/crm/v1/')) {
       let txt = ''; if (req.method === 'POST') txt = await body(req);
       if (await handleCrm(req, res, url, txt, env)) return;
+    }
+    // Propositions de tarif de l'agent (comme le serveur réel, sans mot de passe en recette locale).
+    if (url.pathname === '/api/proposals' || url.pathname === '/api/proposals/decide') {
+      const txt = req.method === 'POST' ? await body(req) : '';
+      const writeDoc = async (name, data, base) => {
+        if (!validDoc(name, data)) throw Object.assign(new Error('format invalide'), { status: 422 });
+        const cur = docs.get(name)?.version || 0;
+        if (base !== undefined && base !== null && base !== '' && String(cur) !== base) return { conflit: true, version: cur };
+        const version = Math.max(Date.now(), cur + 1); docs.set(name, { data, version }); return { conflit: false, version };
+      };
+      if (await proposalsAdminRoute(req, res, url, { store: env.PROPOSALS, env, sendJson: sendJsonX, body: txt, who: 'recette', checkOrigin: false,
+        readDoc: async (name) => docs.get(name) || { data: null, version: 0 }, writeDoc })) return;
     }
     const doc = url.pathname.match(/^\/api\/doc\/([a-z0-9_]+)$/);
     if (doc) {

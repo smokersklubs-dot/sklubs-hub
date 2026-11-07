@@ -9,6 +9,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import pg from 'pg';
 import { allowedName, validDoc, getDoc, putDoc, MAX_BODY } from './docs.js';
+import { proposalsAdminRoute } from './proposals.js';
 import { checkAuth } from './auth.js';
 import { consumeTicket, sessionCookie } from './sso.js';
 import { crmEnv, handleCrm, bridge } from './crm/route.js';
@@ -151,6 +152,18 @@ const server = http.createServer(async (req, res) => {
 
     const doc = url.pathname.match(/^\/api\/doc\/([a-z0-9_]+)$/);
     if (doc) return await docRoute(req, res, doc[1]);
+
+    // Propositions de tarif de l'agent du CRM : Lemexx les accepte ou les refuse ici (seule l'acceptation écrit un tarif).
+    if (url.pathname === '/api/proposals' || url.pathname === '/api/proposals/decide') {
+      let body = '';
+      if (req.method === 'POST') {
+        try { body = await readBody(req); } catch (e) { return sendJson(res, e.status || 400, { error: 'trop gros' }); }
+      }
+      const env = crmEnv(pool, SCHEMA);
+      if (await proposalsAdminRoute(req, res, url, { store: env.PROPOSALS, env, sendJson, body, who: 'hub',
+        readDoc: (name) => getDoc(pool, SCHEMA, name),
+        writeDoc: (name, data, base) => validDoc(name, data) ? putDoc(pool, SCHEMA, name, data, base) : Promise.reject(Object.assign(new Error('format invalide'), { status: 422 })) })) return;
+    }
 
     if (/^\/api\/(mat|matrefresh|research|market-live|market-refresh|watch-status|watch-check)$/.test(url.pathname)) {
       let body = '';
