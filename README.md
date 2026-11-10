@@ -39,6 +39,13 @@ les coûts en € par pièce sont dans `internal.offCatalog` (CRM privé). `/pri
 (`manualRule`) ou 422 « Prix de vente à saisir… ». Les routes publiques des sites ne la servent pas.
 Dans la page, ces sacs ont leur propre case « Sacs Kraft » sur l'accueil (photo `public/img/mylar/kraft_barrier_01.jpg`) et leur
 propre tarif, à part de la liste Mylar (265 lignes inchangées) ; le catalogue CRM donne `group` et `image` pour la matière.
+## Coûts usine reçus
+
+`src/crm/factory-quotes.mjs` (copié dans la page) : devis fournisseur par produit, en RMB, à titre d'information (fiche Cricket
+de Shenzhen Creative Star, 10/11/2026, 12 lignes, 36 078 RMB). Aucun prix de vente n'en est calculé, aucun réglage (`cost0`,
+formules, marges) n'est modifié, la marge reste « à valider ». La page affiche un encadré « Coût usine reçu » dans le produit
+et la ligne à la quantité cotée dans « Tarif détaillé » ; un produit absent du hub est « Hors hub · tarif à saisir ».
+Le moteur et le catalogue CRM ne lisent pas ce module.
 
 ## Tests
 
