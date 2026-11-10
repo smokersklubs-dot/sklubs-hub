@@ -4,13 +4,14 @@
 export function createPriceRules(){
  const round=n=>Math.round((n+Number.EPSILON)*1000)/1000;
  const QPOS={mylar:6,stk:4};
- const qIndex=product=>QPOS[product]??2;
- const key=(product,c)=>JSON.stringify(product==='mylar'?['mylar',c.t,Number(c.th),Number(c.L),Number(c.H),Number(c.G||0),Number(c.q)]:product==='stk'?['stk',c.sh,Number(c.w),Number(c.sh==='rond'?c.w:c.h),Number(c.q),c.mat||'vin',c.fin||'mat',c.cond||'unit']:[product,c.v,Number(c.q)]);
+ // Mylar hors catalogue (matière cotée sans format) : clé ["mylar","hors-catalogue",<réf>,<quantité>], quantité au rang 3.
+ const qIndex=(product,a)=>product==='mylar'&&Array.isArray(a)&&a[1]==='hors-catalogue'?3:(QPOS[product]??2);
+ const key=(product,c)=>JSON.stringify(product==='mylar'?(c.off?['mylar','hors-catalogue',String(c.off),Number(c.q)]:['mylar',c.t,Number(c.th),Number(c.L),Number(c.H),Number(c.G||0),Number(c.q)]):product==='stk'?['stk',c.sh,Number(c.w),Number(c.sh==='rond'?c.w:c.h),Number(c.q),c.mat||'vin',c.fin||'mat',c.cond||'unit']:[product,c.v,Number(c.q)]);
  const validPrice=p=>typeof p==='number'&&Number.isFinite(p)&&p>=.001&&p<=100000;
  const validQuantity=q=>Number.isInteger(q)&&q>=1&&q<=1e7;
  // Série d'un palier : la clé sans sa quantité (même variante, même format et même configuration).
- function split(product,k){try{const a=JSON.parse(k);if(!Array.isArray(a)||a[0]!==product)return null;const i=qIndex(product),q=a[i];if(!validQuantity(q))return null;const s=a.slice();s[i]=null;return {series:JSON.stringify(s),q}}catch{return null}}
- function withQuantity(product,k,q){const a=JSON.parse(k);a[qIndex(product)]=q;return JSON.stringify(a)}
+ function split(product,k){try{const a=JSON.parse(k);if(!Array.isArray(a)||a[0]!==product)return null;const i=qIndex(product,a),q=a[i];if(!validQuantity(q))return null;const s=a.slice();s[i]=null;return {series:JSON.stringify(s),q}}catch{return null}}
+ function withQuantity(product,k,q){const a=JSON.parse(k);a[qIndex(product,a)]=q;return JSON.stringify(a)}
  function apply(result,price,vat){
   if(!validPrice(price))return result;
   const value=Math.max(round(price),Math.ceil(((result.floor||0)-1e-12)*1000)/1000),cost=result.known===false?null:result.cout??result.cb??null;

@@ -28,6 +28,16 @@ interpolé en log(quantité) entre les paliers fixés voisins de la même série
 au-dessus du plus grand) ou sans palier, formule native inchangée. Jamais sous le plancher de marge. `/api/crm/v1/catalog` liste `customTiers`
 (quantité, prix HT, configuration pour `/price`) ; `/price` avec `includeInternal` expose `manualRule` et `interpolatedRule`.
 
+## Matières Mylar hors catalogue
+
+`src/crm/mylar-off-catalog.mjs` (copié tel quel dans la page) : matières cotées par l'usine sans formule ni format, par exemple
+« Kraft + film barrière (alimentaire) » (coût usine reçu le 10/11/2026 : marchandise et fret par palier, en RMB). Le hub n'en
+calcule aucun prix de vente : « Prix de vente à saisir », marge « à valider », statut « Hors catalogue… ». Lemexx fixe le prix
+dans « Tarif détaillé » → « Modifier dans le tableau » (clé `["mylar","hors-catalogue",<réf>,<quantité>]`, paliers libres).
+`/api/crm/v1/catalog` : la matière figure dans `materials` (`offCatalog: true`, statut, quantités cotées) et dans `offCatalog` ;
+les coûts en € par pièce sont dans `internal.offCatalog` (CRM privé). `/price` avec `m` = cette matière : prix fixé exact
+(`manualRule`) ou 422 « Prix de vente à saisir… ». Les routes publiques des sites ne la servent pas.
+
 ## Tests
 
 `npm test` : règles de prix (palier exact, intermédiaire, hors bornes, plancher, document ancien, validation refusée),

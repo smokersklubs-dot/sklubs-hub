@@ -7,6 +7,7 @@
 // mode, poids, frais fixes par commande et marges minimales du hub. Jamais servi aux sites ; le CRM le réserve au droit
 // finance. Toujours exclus : taux RMB, prix usine bruts, indices matière.
 import {catalogEntries} from './public-pricing.mjs';
+import {offCatalogCost,offCatalogKey} from './mylar-off-catalog.mjs';
 
 export const MYLAR_QUANTITIES=[200,300,500,1000,2000,3000,5000];
 export const DEFAULT_QUANTITIES=[100,250,500,1000,2500,5000,10000];
@@ -45,7 +46,9 @@ export function transportRates(modes){return Object.entries(modes||{}).map(([id,
 const num=v=>Number.isFinite(Number(v))?Number(v):null;
 /** Données internes du tarif (CRM privé) : transport au kilo, poids, frais fixes, marges minimales. */
 function internalTariff(kind,s){
- if(kind==='mylar'){const H=s.shared||s.hyp;return {transport:{modes:transportRates(H.modes),includedInCost:true,weight:{basis:'format',densityGPerCm3:num(H.dens),overweight:num(H.over)}},fixedCostPerOrderHT:num(H.fixed),marginFloor:{small:num(H.mS),large:num(H.mB),largeFrom:num(H.qB)}};}
+ if(kind==='mylar'){const H=s.shared||s.hyp;return {transport:{modes:transportRates(H.modes),includedInCost:true,weight:{basis:'format',densityGPerCm3:num(H.dens),overweight:num(H.over)}},fixedCostPerOrderHT:num(H.fixed),marginFloor:{small:num(H.mS),large:num(H.mB),largeFrom:num(H.qB)},
+  // Matières hors catalogue : coût usine en € par pièce aux quantités cotées (marchandise, fret annoncé, frais fixes), jamais de prix de vente inventé.
+  offCatalog:(s.offCatalog||[]).map(o=>({materialId:o.id,name:o.name,source:o.source,receivedAt:o.receivedAt,costsHT:o.tiers.map(t=>{const c=offCatalogCost(o,t.q,H,s.materialAdjustment||0);return c?{quantity:t.q,factoryUnitHT:c.usine,freightUnitHT:c.tr,freightApprox:c.freightApprox,fixedUnitHT:c.fx,unitCostHT:c.cout}:{quantity:t.q}})}))};}
  const h=s.hyp||{};
  if(kind==='stk')return {transport:{modes:transportRates(h.modes),includedInCost:true,weight:{basis:'surface',gsm:num(h.gsm),overweight:num(h.over),waste:num(h.chute)}},fixedCostPerOrderHT:num(h.fixed),marginFloor:{small:num(h.mS),large:num(h.mB),largeFrom:num(h.qB)}};
  // Produits génériques : prix selon la courbe du hub, sans plancher de marge dans le moteur (à venir) ; transport compté
@@ -64,7 +67,10 @@ export function crmCatalogEntries(published,manifest=null){
    return {...entry,...extra,
     formats:entry.formats.map(f=>({...f,thickness:Number.isFinite(th.get(f.ref))?th.get(f.ref):null,image:manifest?.mylar_par_format?.[f.ref]??manifest?.types?.[TYPE_PHOTOS[f.t]||'doypack_zip']?.[0]??null})),
     types:types.map(t=>({id:t,name:t,image:manifest?.types?.[TYPE_PHOTOS[t]||'doypack_zip']?.[0]??null,formats:entry.formats.filter(f=>f.t===t).length})),
-    materials:[...new Set(entry.formats.map(f=>f.m))].map(m=>({id:m,name:MATERIAL_LABELS[m]||m,description:MATERIAL_DESCRIPTIONS[m]||null,thicknesses:[...new Set(entry.formats.filter(f=>f.m===m).map(f=>th.get(f.ref)).filter(Number.isFinite))].sort((a,b)=>a-b)})),
+    materials:[...[...new Set(entry.formats.map(f=>f.m))].map(m=>({id:m,name:MATERIAL_LABELS[m]||m,description:MATERIAL_DESCRIPTIONS[m]||null,thicknesses:[...new Set(entry.formats.filter(f=>f.m===m).map(f=>th.get(f.ref)).filter(Number.isFinite))].sort((a,b)=>a-b)})),
+     // Matières hors catalogue : proposées au choix « Matière » du CRM sans format ni configuration préremplis ; prix de vente à saisir dans le hub.
+     ...(s.offCatalog||[]).map(o=>({id:o.id,name:o.name,description:o.description,thicknesses:[],offCatalog:true,status:o.status,receivedAt:o.receivedAt,unknown:o.unknown,quotedQuantities:o.tiers.map(t=>t.q),salePrice:'à saisir dans le hub',margin:'à valider'}))],
+    offCatalog:(s.offCatalog||[]).map(o=>({materialId:o.id,ref:o.ref,name:o.name,status:o.status,receivedAt:o.receivedAt,unknown:o.unknown,quotedQuantities:o.tiers.map(t=>t.q),pricedQuantities:o.tiers.map(t=>t.q).filter(q=>Number.isFinite(Number(s.rules?.[offCatalogKey(o.ref,q)])))})),
     thicknesses:[...new Set([...th.values()].filter(Number.isFinite))].sort((a,b)=>a-b),
     thicknessOffer:[...new Set([...MYLAR_THICKNESS_OFFER,...th.values()].filter(Number.isFinite))].sort((a,b)=>a-b).map(v=>({value:v,priced:[...th.values()].includes(v)})),
     // Le hub ne modélise pas de finition Mylar séparée (mat, brillant, fenêtre) : le zip fait partie du type de sachet.
