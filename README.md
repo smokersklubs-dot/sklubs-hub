@@ -47,6 +47,14 @@ formules, marges) n'est modifié, la marge reste « à valider ». La page affic
 et la ligne à la quantité cotée dans « Tarif détaillé » ; un produit absent du hub est « Hors hub · tarif à saisir ».
 Le moteur et le catalogue CRM ne lisent pas ce module.
 
+## Liste d'achat « Mylar alimentaire (spécial) »
+
+`src/crm/mylar-food-list.mjs` (copié dans la page) : coûts usine en USD de Hongbang Packaging (fiche reçue le 10/11/2026), fond plat
+et debout avec zip et encoches, 7 paliers de 500 à 10 000. Liste séparée des prix Mylar existants, étiquette « alimentaire »,
+ouverte depuis « Tarif détaillé » des sachets Mylar. Aucun prix de vente, marge « à valider », aucune conversion en euros
+(le hub ne gère que le taux CNY → EUR). Les valeurs douteuses (`toVerify`) sont affichées « à vérifier ». Le moteur et le
+catalogue CRM ne lisent pas ce module.
+
 ## Tests
 
 `npm test` : règles de prix (palier exact, intermédiaire, hors bornes, plancher, document ancien, validation refusée),
