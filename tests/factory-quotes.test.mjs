@@ -37,3 +37,10 @@ test('aucun prix ni réglage ne dépend des coûts usine reçus : moteur et cata
   const expected = { badge: [1200, 0.15], pin: [200, 0.75], bottle: [200, 4.3], pen: [1000, 0.28], lanyard: [140, 1], patch: [500, 1], tshirt: [750, 6.3], cap: [175, 4.5], beanie: [100, 4], bucket: [100, 5.5], sock: [200, 2.38], tote: [500, 1.4] };
   for (const [id, [q, price]] of Object.entries(expected)) assert.equal(at(id, q), price, id);
 });
+
+test('fiche complète : 12 lignes, total 36 078 RMB, 11 produits rattachés, poignée de téléphone hors hub', () => {
+  assert.equal(FACTORY_QUOTES.length, 12);
+  assert.equal(FACTORY_QUOTES.reduce((a, x) => a + x.total, 0), 36078);
+  assert.deepEqual(FACTORY_QUOTES.map((x) => [x.line, x.product, x.q, x.unit, x.total]), [[1, 'badge', 1000, 4, 4000], [2, 'cap', 350, 25, 8750], [3, 'patch', 85, 10, 850], [4, null, 150, 6.2, 930], [5, 'pen', 1000, 1.2, 1200], [6, 'tote', 500, 8, 4000], [7, 'sock', 200, 6.5, 1300], [8, 'bottle', 200, 25, 5000], [9, 'pin', 200, 2, 400], [10, 'beanie', 100, 28, 2800], [11, 'bucket', 200, 32, 6400], [12, 'lanyard', 140, 3.2, 448]]);
+  assert.deepEqual(factoryQuotesOffHub().map((x) => x.label), ['Poignée de téléphone']);
+});

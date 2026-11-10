@@ -28,6 +28,14 @@ interpolé en log(quantité) entre les paliers fixés voisins de la même série
 au-dessus du plus grand) ou sans palier, formule native inchangée. Jamais sous le plancher de marge. `/api/crm/v1/catalog` liste `customTiers`
 (quantité, prix HT, configuration pour `/price`) ; `/price` avec `includeInternal` expose `manualRule` et `interpolatedRule`.
 
+## Coûts usine reçus
+
+`src/crm/factory-quotes.mjs` (copié dans la page) : devis fournisseur par produit, en RMB, à titre d'information (fiche Cricket
+de Shenzhen Creative Star, 10/11/2026, 12 lignes, 36 078 RMB). Aucun prix de vente n'en est calculé, aucun réglage (`cost0`,
+formules, marges) n'est modifié, la marge reste « à valider ». La page affiche un encadré « Coût usine reçu » dans le produit
+et la ligne à la quantité cotée dans « Tarif détaillé » ; un produit absent du hub est « Hors hub · tarif à saisir ».
+Le moteur et le catalogue CRM ne lisent pas ce module.
+
 ## Tests
 
 `npm test` : règles de prix (palier exact, intermédiaire, hors bornes, plancher, document ancien, validation refusée),
