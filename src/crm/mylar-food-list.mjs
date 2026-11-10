@@ -1,7 +1,8 @@
 // Liste d'ACHAT « Mylar alimentaire (spécial) » — usine Hongbang Packaging. Liste séparée des prix Mylar existants
 // (autre usine, autre devise, autres quantités) : elle ne passe par aucune formule du hub et ne produit aucun prix de vente.
-// Coûts usine en USD par sachet, tels que reçus ; marge « à valider ». Le hub ne gère pas de taux USD → EUR (seulement
-// CNY → EUR) : aucune conversion n'est faite tant qu'un taux n'est pas fourni. Tailles en cm (largeur × hauteur + soufflet).
+// Coûts usine en USD par sachet, tels que reçus ; marge « à valider ». La page affiche aussi l'équivalent en euros avec le
+// taux USD → EUR relevé automatiquement (BCE, comme le yuan) ; sans taux relevé, aucun euro n'est affiché ni inventé.
+// Tailles en cm (largeur × hauteur + soufflet).
 // Ce bloc est recopié tel quel dans public/index.html (sans les `export`).
 export const MYLAR_FOOD_LIST = {
   id: 'mylar-alimentaire-hongbang', name: 'Mylar alimentaire (spécial)', label: 'alimentaire',

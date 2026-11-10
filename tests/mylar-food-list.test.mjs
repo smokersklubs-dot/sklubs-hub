@@ -43,3 +43,19 @@ test('liste séparée : le moteur de prix et le catalogue ne la lisent pas ; la 
   const block = read('../src/crm/mylar-food-list.mjs').replace(/^export (const|function) /gm, '$1 ').trimEnd();
   assert.ok(read('../public/index.html').includes(block));
 });
+
+test('taux dollar automatique : relevé BCE comme le yuan, jamais inventé, dernière valeur conservée en cas de panne', async () => {
+  const { refreshMarkets } = await import('../src/market/market-data.mjs');
+  const reply = (body, ok = true) => ({ ok, status: ok ? 200 : 500, json: async () => body, text: async () => '' });
+  const fetcher = (rates) => async (url) => { const u = String(url); if (u.includes('base=USD')) return rates.usd; if (u.includes('base=CNY')) return rates.cny; throw new Error('série hors test'); };
+  const first = await refreshMarkets({}, fetcher({ usd: reply({ base: 'USD', date: '2026-11-09', rates: { EUR: 0.89342 } }), cny: reply({ base: 'CNY', date: '2026-11-09', rates: { EUR: 0.12 } }) }), new Date('2026-11-10T05:20:00Z'));
+  assert.deepEqual({ ...first.exchangeUsd, checkedAt: undefined }, { base: 'USD', quote: 'EUR', rate: 0.89342, date: '2026-11-09', checkedAt: undefined, source: 'BCE via Frankfurter', url: 'https://api.frankfurter.dev/v1/latest?base=USD&symbols=EUR', status: 'ok' });
+  assert.equal(first.exchange.rate, 0.12, 'le relevé du yuan est inchangé');
+  // Taux aberrant ou panne : rien d'inventé ; la dernière valeur valide est conservée et signalée.
+  const bad = await refreshMarkets(first, fetcher({ usd: reply({ date: '2026-11-10', rates: { EUR: 9 } }), cny: reply({}, false) }), new Date('2026-11-11T05:20:00Z'));
+  assert.equal(bad.exchangeUsd.rate, 0.89342);
+  assert.equal(bad.exchangeUsd.status, 'cached');
+  assert.ok(bad.errors.some((e) => e.key === 'exchangeUsd'));
+  const never = await refreshMarkets({}, fetcher({ usd: reply({}, false), cny: reply({}, false) }));
+  assert.equal(never.exchangeUsd, null, 'aucun taux relevé : aucun taux');
+});

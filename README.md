@@ -51,8 +51,8 @@ Le moteur et le catalogue CRM ne lisent pas ce module.
 
 `src/crm/mylar-food-list.mjs` (copié dans la page) : coûts usine en USD de Hongbang Packaging (fiche reçue le 10/11/2026), fond plat
 et debout avec zip et encoches, 7 paliers de 500 à 10 000. Liste séparée des prix Mylar existants, étiquette « alimentaire »,
-ouverte depuis « Tarif détaillé » des sachets Mylar. Aucun prix de vente, marge « à valider », aucune conversion en euros
-(le hub ne gère que le taux CNY → EUR). Les valeurs douteuses (`toVerify`) sont affichées « à vérifier ». Le moteur et le
+ouverte depuis « Tarif détaillé » des sachets Mylar. Aucun prix de vente, marge « à valider ». Équivalent en euros indicatif
+avec le taux USD → EUR relevé automatiquement (`exchangeUsd` dans les marchés, BCE via Frankfurter, comme le yuan). Les valeurs douteuses (`toVerify`) sont affichées « à vérifier ». Le moteur et le
 catalogue CRM ne lisent pas ce module.
 
 ## Tests

@@ -49,5 +49,12 @@ export async function refreshMarkets(previous={},fetcher=fetch,now=new Date()) {
   const j=await response.json(),rate=j.rates?.EUR;if(!(rate>.01&&rate<.5)||!/^\d{4}-\d{2}-\d{2}$/.test(j.date))throw new Error('Taux ou date non valide');
   exchange={base:'CNY',quote:'EUR',rate,date:j.date,checkedAt,source:'BCE via Frankfurter',url:'https://api.frankfurter.dev/v1/latest?base=CNY&symbols=EUR',status:'ok'};
  }catch(error){errors.push({key:'exchange',error:String(error.message)});if(exchange)exchange={...exchange,status:'cached',lastFailedAt:checkedAt}}
- return {checkedAt,updated:checkedAt.slice(0,10),series,exchange,errors,policy:'read_only_manual_application'};
+ // Dollar → euro (liste d'achat « Mylar alimentaire », fiche en USD) : même source BCE, même règle : jamais de taux inventé.
+ let exchangeUsd=previous.exchangeUsd||null;
+ try{
+  const url='https://api.frankfurter.dev/v1/latest?base=USD&symbols=EUR',response=await fetcher(url,{signal:AbortSignal.timeout(15000)});if(!response.ok)throw new Error('HTTP '+response.status);
+  const j=await response.json(),rate=j.rates?.EUR;if(!(rate>.5&&rate<1.5)||!/^\d{4}-\d{2}-\d{2}$/.test(j.date))throw new Error('Taux ou date non valide');
+  exchangeUsd={base:'USD',quote:'EUR',rate,date:j.date,checkedAt,source:'BCE via Frankfurter',url,status:'ok'};
+ }catch(error){errors.push({key:'exchangeUsd',error:String(error.message)});if(exchangeUsd)exchangeUsd={...exchangeUsd,status:'cached',lastFailedAt:checkedAt}}
+ return {checkedAt,updated:checkedAt.slice(0,10),series,exchange,exchangeUsd,errors,policy:'read_only_manual_application'};
 }
