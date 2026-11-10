@@ -105,5 +105,8 @@
    "mylar/diamond_34.jpg",
    "mylar/diamond_45.jpg"
   ]
+ },
+ "materials": {
+  "KRAFT/BARRIER": "mylar/kraft_barrier_01.jpg"
  }
 }

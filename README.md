@@ -37,6 +37,8 @@ dans « Tarif détaillé » → « Modifier dans le tableau » (clé `["mylar","
 `/api/crm/v1/catalog` : la matière figure dans `materials` (`offCatalog: true`, statut, quantités cotées) et dans `offCatalog` ;
 les coûts en € par pièce sont dans `internal.offCatalog` (CRM privé). `/price` avec `m` = cette matière : prix fixé exact
 (`manualRule`) ou 422 « Prix de vente à saisir… ». Les routes publiques des sites ne la servent pas.
+Dans la page, ces sacs ont leur propre case « Sacs Kraft » sur l'accueil (photo `public/img/mylar/kraft_barrier_01.jpg`) et leur
+propre tarif, à part de la liste Mylar (265 lignes inchangées) ; le catalogue CRM donne `group` et `image` pour la matière.
 
 ## Tests
 

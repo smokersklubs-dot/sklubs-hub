@@ -63,6 +63,10 @@ test('catalogue CRM : la matière est proposée sans prix ni format ; coûts dan
   assert.equal(kraft.margin, 'à valider');
   assert.deepEqual(kraft.quotedQuantities, [1000, 2000]);
   assert.deepEqual(kraft.thicknesses, []);
+  assert.equal(kraft.group, 'Sacs Kraft', 'case à part des sacs Mylar');
+  assert.equal(kraft.image, 'mylar/kraft_barrier_01.jpg');
+  assert.ok(readFileSync(new URL('../public/img/' + kraft.image, import.meta.url)).length > 10000, 'photo du sachet kraft présente dans le hub');
+  assert.equal(JSON.parse(readFileSync(new URL('../public/img/manifest.json', import.meta.url), 'utf8')).materials['KRAFT/BARRIER'], kraft.image);
   assert.equal(entry.formats.some((f) => f.m === 'KRAFT/BARRIER'), false, 'aucun format inventé');
   assert.deepEqual(entry.offCatalog[0].pricedQuantities, []);
   assert.equal(entry.internal.offCatalog[0].costsHT.length, 2);

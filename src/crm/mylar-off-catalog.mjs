@@ -6,6 +6,7 @@
 export const MYLAR_OFF_CATALOG = [
   {
     id: 'KRAFT/BARRIER', ref: 'KR-1', name: 'Kraft + film barrière (alimentaire)',
+    group: 'Sacs Kraft', image: 'mylar/kraft_barrier_01.jpg', // photo du hub (générée le 10/11/2026), servie au CRM par /api/crm/v1/image/…
     description: 'Papier kraft · film barrière intérieur apte au contact alimentaire, résistant aux graisses · impression personnalisée, plusieurs designs',
     typeLabel: 'À confirmer (fond plat ou doypack à zip)',
     status: 'Hors catalogue : coût usine reçu le 10/11/2026, format et délai à confirmer',
