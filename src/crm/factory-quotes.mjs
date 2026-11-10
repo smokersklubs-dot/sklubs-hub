@@ -17,6 +17,7 @@ export const FACTORY_QUOTES = [
   { line: 9, product: 'pin', label: 'Pins', spec: '3×0,8 cm, 0,3 mm, métal', designs: 3, q: 200, unit: 2, total: 400, sample: 230, sampleApprox: false, sampleNote: null, sampleDays: '3-5', productionDays: '10-15' },
   { line: 10, product: 'beanie', label: 'Bonnets', spec: 'L19 H22 revers 6, coton', designs: 2, q: 100, unit: 28, total: 2800, sample: 300, sampleApprox: false, sampleNote: null, sampleDays: '7', productionDays: '~22' },
   { line: 11, product: 'bucket', label: 'Bobs', spec: 'circ. 57, prof. 16, visière 8, coton', designs: 2, q: 200, unit: 32, total: 6400, sample: 200, sampleApprox: false, sampleNote: null, sampleDays: '7', productionDays: '~22' },
+  { line: 12, product: 'lanyard', label: 'Lanyards', spec: '45×2 cm, nylon', designs: 1, q: 140, unit: 3.2, total: 448, sample: 30, sampleApprox: false, sampleNote: null, sampleDays: '3-5', productionDays: '10-15' },
 ];
 export const factoryQuotesFor = (id) => FACTORY_QUOTES.filter((x) => x.product === id);
 export const factoryQuotesOffHub = () => FACTORY_QUOTES.filter((x) => !x.product);
