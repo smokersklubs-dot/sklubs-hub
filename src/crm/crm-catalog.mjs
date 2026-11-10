@@ -7,6 +7,7 @@
 // mode, poids, frais fixes par commande et marges minimales du hub. Jamais servi aux sites ; le CRM le réserve au droit
 // finance. Toujours exclus : taux RMB, prix usine bruts, indices matière.
 import {catalogEntries} from './public-pricing.mjs';
+import {quoteComparison,FACTORY_QUOTE_SOURCE,SALE_QUOTE_SOURCE} from './factory-quotes.mjs';
 import {offCatalogCost,offCatalogKey} from './mylar-off-catalog.mjs';
 
 export const MYLAR_QUANTITIES=[200,300,500,1000,2000,3000,5000];
@@ -60,7 +61,10 @@ const choice=(dict,withFee=false)=>Object.entries(dict||{}).map(([id,v])=>({id,n
 export function crmCatalogEntries(published,manifest=null){
  return catalogEntries(published).map(entry=>{
   const s=published[entry.id],hyp=s?.hyp||{};
-  const extra={internal:internalTariff(entry.kind,s),vatRate:Number.isFinite(Number(s?.shared?.vat))?Number(s.shared.vat):null,modes:transportModes(hyp),image:productImage(entry.id,manifest),...quantityPlan(entry.kind,entry.minimum)};
+  // Achat usine et vente déjà pratiquée (demande de Lemexx du 10 novembre 2026 : « mon hub a le prix d'achat et le prix de
+  // vente… dans le hub et dans le CRM ») : dans le bloc interne seulement, jamais sur les routes publiques.
+  const cmp=quoteComparison(entry.id,Number(s?.shared?.fx)),quotes=cmp?{quotes:{...cmp,purchaseSource:cmp.purchase?FACTORY_QUOTE_SOURCE:null,saleSource:cmp.sale?SALE_QUOTE_SOURCE:null}}:{};
+  const extra={internal:{...internalTariff(entry.kind,s),...quotes},vatRate:Number.isFinite(Number(s?.shared?.vat))?Number(s.shared.vat):null,modes:transportModes(hyp),image:productImage(entry.id,manifest),...quantityPlan(entry.kind,entry.minimum)};
   if(entry.kind==='mylar'){
    const th=new Map((s.rows||[]).map(r=>[r.ref,Number(r.th)]));
    const types=[...new Set(entry.formats.map(f=>f.t))];

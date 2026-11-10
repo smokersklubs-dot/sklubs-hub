@@ -45,7 +45,11 @@ propre tarif, à part de la liste Mylar (265 lignes inchangées) ; le catalogue 
 de Shenzhen Creative Star, 10/11/2026, 12 lignes, 36 078 RMB). Aucun prix de vente n'en est calculé, aucun réglage (`cost0`,
 formules, marges) n'est modifié, la marge reste « à valider ». La page affiche un encadré « Coût usine reçu » dans le produit
 et la ligne à la quantité cotée dans « Tarif détaillé » ; un produit absent du hub est « Hors hub · tarif à saisir ».
-Le moteur et le catalogue CRM ne lisent pas ce module.
+Le moteur de prix ne lit pas ce module.
+
+Depuis le 10/11/2026 (demande de Lemexx), le même module porte aussi le devis de VENTE Cricket (« Quotation update 10.12 », EXW,
+10 058 €) : la page affiche achat et vente côte à côte avec un écart indicatif (achat converti au taux yuan du hub, sans
+transport ni frais), et `/api/crm/v1/catalog` les donne dans `internal.quotes` (bloc privé du CRM, jamais sur les routes publiques).
 
 ## Liste d'achat « Mylar alimentaire (spécial) »
 

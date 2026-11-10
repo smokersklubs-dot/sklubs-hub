@@ -3,7 +3,7 @@
 // par Lemexx. Un produit absent du hub (product: null) est « Hors hub / tarif à saisir », sans configuration inventée.
 // Ce bloc est recopié tel quel dans public/index.html (sans les `export`).
 export const FACTORY_QUOTE_SOURCE = 'Shenzhen Creative Star — fiche Cricket, 10/11/2026';
-export const FACTORY_QUOTE_CURRENCY = { code: 'CNY', confirmed: false, note: 'Devise non écrite sur la fiche : RMB (CNY) à confirmer' };
+export const FACTORY_QUOTE_CURRENCY = { code: 'CNY', confirmed: true, note: 'Yuans (RMB) : montants en « 元 » sur la fiche d’origine' };
 // line : n° de ligne de la fiche ; q : quantité cotée (palier unique) ; unit et total en RMB ; sample : échantillon en RMB.
 export const FACTORY_QUOTES = [
   { line: 1, product: 'badge', label: 'Badges', spec: '5 mm, fer-blanc', designs: 2, q: 1000, unit: 4, total: 4000, sample: 300, sampleApprox: true, sampleNote: null, sampleDays: '5-7', productionDays: '15-20' },
@@ -21,3 +21,34 @@ export const FACTORY_QUOTES = [
 ];
 export const factoryQuotesFor = (id) => FACTORY_QUOTES.filter((x) => x.product === id);
 export const factoryQuotesOffHub = () => FACTORY_QUOTES.filter((x) => !x.product);
+// Prix de VENTE déjà facturés au client Cricket (devis « Quotation update 10.12 », EXW, en euros, total 10 058 €).
+// Référence de vente : le hub porte déjà ces prix à ces quantités ; rien n'est recalculé ni modifié ici.
+export const SALE_QUOTE_SOURCE = 'Devis client Cricket — « Quotation update 10.12 », départ usine (EXW), en euros';
+export const SALE_QUOTES = [
+  { product: 'badge', label: 'Badges', spec: '5 mm', designs: 6, q: 1200, qNote: '200 par design', unit: 0.15, total: 180 },
+  { product: 'tshirt', label: 'T-shirts', spec: 'S, M, L, XL, coton', designs: 3, q: 750, qNote: '250 par design', unit: 6.3, total: 4725 },
+  { product: 'cap', label: 'Casquettes', spec: 'coton', designs: 1, q: 175, qNote: null, unit: 4.5, total: 787 },
+  { product: 'patch', label: 'Patches', spec: 'coton', designs: 6, q: 500, qNote: '83 par design', unit: 1, total: 500 },
+  { product: 'stk', label: 'Stickers', spec: '220×220 mm, PVC', designs: 27, q: 1000, qNote: null, unit: 0.31, total: 310 },
+  { product: 'pen', label: 'Stylos', spec: 'plastique', designs: 1, q: 1000, qNote: null, unit: 0.28, total: 280 },
+  { product: 'tote', label: 'Tote bags', spec: 'coton', designs: 1, q: 500, qNote: null, unit: 1.4, total: 700 },
+  { product: 'sock', label: 'Chaussettes', spec: 'coton', designs: 2, q: 200, qNote: '100 par design', unit: 2.38, total: 476 },
+  { product: 'bottle', label: 'Gourdes', spec: 'métal', designs: 1, q: 200, qNote: null, unit: 4.3, total: 860 },
+  { product: 'pin', label: 'Pins', spec: 'métal', designs: 3, q: 200, qNote: '66 par design', unit: 0.75, total: 150 },
+  { product: 'beanie', label: 'Bonnets', spec: 'coton', designs: 1, q: 100, qNote: null, unit: 4, total: 400 },
+  { product: 'bucket', label: 'Bobs', spec: 'coton', designs: 1, q: 100, qNote: null, unit: 5.5, total: 550 },
+  { product: 'lanyard', label: 'Lanyards', spec: '', designs: 1, q: 140, qNote: null, unit: 1, total: 140 },
+];
+export const saleQuoteFor = (id) => SALE_QUOTES.find((x) => x.product === id) || null;
+// Rapprochement achat / vente d'un produit. `fx` = taux yuan → euro du hub (jamais modifié ici). L'achat en euros est une
+// conversion brute du prix usine : sans transport, réserve, échantillon ni frais. L'écart n'est donné que comme repère,
+// et signalé quand les quantités des deux fiches diffèrent ou quand la vente passe sous l'achat.
+export function quoteComparison(id, fx) {
+  const buy = factoryQuotesFor(id)[0] || null, sell = saleQuoteFor(id);
+  if (!buy && !sell) return null;
+  const buyEur = buy && fx > 0 ? buy.unit * fx : null, gap = buyEur != null && sell ? sell.unit - buyEur : null;
+  return { purchase: buy ? { quantity: buy.q, designs: buy.designs, unitCny: buy.unit, totalCny: buy.total, unitEurIndicative: buyEur } : null,
+    sale: sell ? { quantity: sell.q, designs: sell.designs, unitEur: sell.unit, totalEur: sell.total } : null,
+    sameQuantity: buy && sell ? buy.q === sell.q : null, gapUnitEurIndicative: gap, gapRateIndicative: gap != null ? gap / sell.unit : null,
+    saleBelowPurchase: gap != null ? gap < 0 : null };
+}

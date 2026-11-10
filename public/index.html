@@ -1523,7 +1523,7 @@ const offRows=()=>MYLAR_OFF_CATALOG.flatMap(item=>item.tiers.map(t=>offRow(item,
 // par Lemexx. Un produit absent du hub (product: null) est « Hors hub / tarif à saisir », sans configuration inventée.
 // Ce bloc est recopié tel quel dans public/index.html (sans les `export`).
 const FACTORY_QUOTE_SOURCE = 'Shenzhen Creative Star — fiche Cricket, 10/11/2026';
-const FACTORY_QUOTE_CURRENCY = { code: 'CNY', confirmed: false, note: 'Devise non écrite sur la fiche : RMB (CNY) à confirmer' };
+const FACTORY_QUOTE_CURRENCY = { code: 'CNY', confirmed: true, note: 'Yuans (RMB) : montants en « 元 » sur la fiche d’origine' };
 // line : n° de ligne de la fiche ; q : quantité cotée (palier unique) ; unit et total en RMB ; sample : échantillon en RMB.
 const FACTORY_QUOTES = [
   { line: 1, product: 'badge', label: 'Badges', spec: '5 mm, fer-blanc', designs: 2, q: 1000, unit: 4, total: 4000, sample: 300, sampleApprox: true, sampleNote: null, sampleDays: '5-7', productionDays: '15-20' },
@@ -1541,11 +1541,46 @@ const FACTORY_QUOTES = [
 ];
 const factoryQuotesFor = (id) => FACTORY_QUOTES.filter((x) => x.product === id);
 const factoryQuotesOffHub = () => FACTORY_QUOTES.filter((x) => !x.product);
+// Prix de VENTE déjà facturés au client Cricket (devis « Quotation update 10.12 », EXW, en euros, total 10 058 €).
+// Référence de vente : le hub porte déjà ces prix à ces quantités ; rien n'est recalculé ni modifié ici.
+const SALE_QUOTE_SOURCE = 'Devis client Cricket — « Quotation update 10.12 », départ usine (EXW), en euros';
+const SALE_QUOTES = [
+  { product: 'badge', label: 'Badges', spec: '5 mm', designs: 6, q: 1200, qNote: '200 par design', unit: 0.15, total: 180 },
+  { product: 'tshirt', label: 'T-shirts', spec: 'S, M, L, XL, coton', designs: 3, q: 750, qNote: '250 par design', unit: 6.3, total: 4725 },
+  { product: 'cap', label: 'Casquettes', spec: 'coton', designs: 1, q: 175, qNote: null, unit: 4.5, total: 787 },
+  { product: 'patch', label: 'Patches', spec: 'coton', designs: 6, q: 500, qNote: '83 par design', unit: 1, total: 500 },
+  { product: 'stk', label: 'Stickers', spec: '220×220 mm, PVC', designs: 27, q: 1000, qNote: null, unit: 0.31, total: 310 },
+  { product: 'pen', label: 'Stylos', spec: 'plastique', designs: 1, q: 1000, qNote: null, unit: 0.28, total: 280 },
+  { product: 'tote', label: 'Tote bags', spec: 'coton', designs: 1, q: 500, qNote: null, unit: 1.4, total: 700 },
+  { product: 'sock', label: 'Chaussettes', spec: 'coton', designs: 2, q: 200, qNote: '100 par design', unit: 2.38, total: 476 },
+  { product: 'bottle', label: 'Gourdes', spec: 'métal', designs: 1, q: 200, qNote: null, unit: 4.3, total: 860 },
+  { product: 'pin', label: 'Pins', spec: 'métal', designs: 3, q: 200, qNote: '66 par design', unit: 0.75, total: 150 },
+  { product: 'beanie', label: 'Bonnets', spec: 'coton', designs: 1, q: 100, qNote: null, unit: 4, total: 400 },
+  { product: 'bucket', label: 'Bobs', spec: 'coton', designs: 1, q: 100, qNote: null, unit: 5.5, total: 550 },
+  { product: 'lanyard', label: 'Lanyards', spec: '', designs: 1, q: 140, qNote: null, unit: 1, total: 140 },
+];
+const saleQuoteFor = (id) => SALE_QUOTES.find((x) => x.product === id) || null;
+// Rapprochement achat / vente d'un produit. `fx` = taux yuan → euro du hub (jamais modifié ici). L'achat en euros est une
+// conversion brute du prix usine : sans transport, réserve, échantillon ni frais. L'écart n'est donné que comme repère,
+// et signalé quand les quantités des deux fiches diffèrent ou quand la vente passe sous l'achat.
+function quoteComparison(id, fx) {
+  const buy = factoryQuotesFor(id)[0] || null, sell = saleQuoteFor(id);
+  if (!buy && !sell) return null;
+  const buyEur = buy && fx > 0 ? buy.unit * fx : null, gap = buyEur != null && sell ? sell.unit - buyEur : null;
+  return { purchase: buy ? { quantity: buy.q, designs: buy.designs, unitCny: buy.unit, totalCny: buy.total, unitEurIndicative: buyEur } : null,
+    sale: sell ? { quantity: sell.q, designs: sell.designs, unitEur: sell.unit, totalEur: sell.total } : null,
+    sameQuantity: buy && sell ? buy.q === sell.q : null, gapUnitEurIndicative: gap, gapRateIndicative: gap != null ? gap / sell.unit : null,
+    saleBelowPurchase: gap != null ? gap < 0 : null };
+}
 /* FACTORY QUOTES END */
 // Coût usine reçu : encadré d'information dans « Tarif détaillé » et « Hypothèses » du produit. Aucun prix n'en dépend.
 const factorySample=x=>(x.sampleApprox?'environ ':'')+nf(x.sample,0)+' RMB'+(x.sampleNote?' ('+esc(x.sampleNote)+')':'');
-function factoryBox(id){return factoryQuotesFor(id).map(x=>`<section data-factory-quote style="margin:0 0 14px;padding:12px 14px;border:1px dashed var(--ln);border-radius:14px"><b>Coût usine reçu · ${nf(x.unit,2)} RMB / pièce à ${nf(x.q,0)} pièces</b><p class="note" style="margin:6px 0">${esc(FACTORY_QUOTE_SOURCE)} · ${esc(x.spec)} · ${x.designs} design${x.designs>1?'s':''} · total ${nf(x.total,0)} RMB · échantillon ${factorySample(x)} · délai échantillon ${esc(x.sampleDays)} j · production ${esc(x.productionDays)} j.</p><p class="note"><span class="chip wn">Prix de vente inchangé</span> <span class="chip wn">Marge à valider</span> <span class="chip">${esc(FACTORY_QUOTE_CURRENCY.note)}</span></p></section>`).join('')}
-function factoryTable(){return FACTORY_QUOTES.length?`<div class="tw" style="max-height:none"><table><thead><tr><th>#</th><th class="l">Produit</th><th class="l">Matière / taille</th><th>Designs</th><th>Qté</th><th>Unitaire RMB</th><th>Total RMB</th><th>Échantillon</th><th>Délai éch. (j)</th><th>Délai prod. (j)</th><th class="l">Dans le hub</th></tr></thead><tbody>${FACTORY_QUOTES.map(x=>`<tr><td>${x.line}</td><td class="l">${esc(x.label)}</td><td class="l">${esc(x.spec)}</td><td>${x.designs}</td><td>${nf(x.q,0)}</td><td>${nf(x.unit,2)}</td><td>${nf(x.total,0)}</td><td>${factorySample(x)}</td><td>${esc(x.sampleDays)}</td><td>${esc(x.productionDays)}</td><td class="l">${x.product?'Produit existant · prix inchangé':'Hors hub · tarif à saisir'}</td></tr>`).join('')}</tbody></table></div><p class="note">${esc(FACTORY_QUOTE_SOURCE)} · total ${nf(FACTORY_QUOTES.reduce((a,x)=>a+x.total,0),0)} RMB · ${esc(FACTORY_QUOTE_CURRENCY.note)}. Aucun prix de vente calculé, marges à valider.</p>`:''}
+function factoryBox(id){const c=quoteComparison(id,H.fx);if(!c)return '';const b=factoryQuotesFor(id)[0],s=saleQuoteFor(id);
+ const buy=b?`<p class="note" style="margin:6px 0"><b>Achat usine : ${nf(b.unit,2)} RMB / pièce à ${nf(b.q,0)} pièces</b>${c.purchase.unitEurIndicative!=null?' ≈ '+eur(c.purchase.unitEurIndicative,3)+' (taux du hub, conversion brute)':''} · ${esc(FACTORY_QUOTE_SOURCE)} · ${esc(b.spec)} · ${b.designs} design${b.designs>1?'s':''} · total ${nf(b.total,0)} RMB · échantillon ${factorySample(b)} · délais ${esc(b.sampleDays)} j / ${esc(b.productionDays)} j.</p>`:'<p class="note" style="margin:6px 0"><b>Achat usine : non reçu</b> pour ce produit.</p>';
+ const sell=s?`<p class="note" style="margin:6px 0"><b>Vente : ${eur(s.unit,s.unit<1?3:2)} / pièce à ${nf(s.q,0)} pièces</b>${s.qNote?' ('+esc(s.qNote)+')':''} · ${esc(SALE_QUOTE_SOURCE)} · total ${eur(s.total,0)}.</p>`:'<p class="note" style="margin:6px 0"><b>Vente : aucun prix sur le devis</b> pour ce produit.</p>';
+ const gap=c.gapUnitEurIndicative==null?'':`<span class="chip ${c.saleBelowPurchase?'bd':'ok'}">${c.saleBelowPurchase?'Vente sous le prix d’achat : à vérifier':'Écart indicatif '+eur(c.gapUnitEurIndicative,3)+' / pièce ('+pct(c.gapRateIndicative,0)+')'}</span> `;
+ return `<section data-factory-quote style="margin:0 0 14px;padding:12px 14px;border:1px dashed var(--ln);border-radius:14px"><b>Prix d’achat et prix de vente · référence Cricket</b>${buy}${sell}<p class="note">${gap}${c.sameQuantity===false?'<span class="chip wn">Quantités différentes entre les deux fiches</span> ':''}<span class="chip wn">Marge à valider</span> <span class="chip">Achat sans transport ni frais</span></p></section>`}
+function factoryTable(){const ids=[...new Set([...FACTORY_QUOTES.map(x=>x.product),...SALE_QUOTES.map(x=>x.product)])];return `<div class="tw" style="max-height:none"><table><thead><tr><th class="l">Produit</th><th>Achat RMB / pièce</th><th>Qté achat</th><th>Achat ≈ €</th><th>Vente € / pièce</th><th>Qté vente</th><th>Écart indicatif</th><th class="l">À noter</th></tr></thead><tbody>${ids.map(id=>{const b=id?factoryQuotesFor(id)[0]:factoryQuotesOffHub()[0],s=id?saleQuoteFor(id):null,c=id?quoteComparison(id,H.fx):null,be=b&&H.fx>0?b.unit*H.fx:null;return `<tr><td class="l">${esc((b||s).label)}</td><td>${b?nf(b.unit,2):'–'}</td><td>${b?nf(b.q,0):'–'}</td><td>${be!=null?nf(be,3):'–'}</td><td>${s?nf(s.unit,s.unit<1?3:2):'–'}</td><td>${s?nf(s.q,0):'–'}</td><td>${c&&c.gapUnitEurIndicative!=null?nf(c.gapUnitEurIndicative,3)+' €':'–'}</td><td class="l">${!id?'Hors hub · tarif à saisir':c.saleBelowPurchase?'Vente sous le prix d’achat : à vérifier':!b?'Achat usine non reçu':c.sameQuantity===false?'Quantités différentes':''}</td></tr>`}).join('')}</tbody></table></div><p class="note">Achat : ${esc(FACTORY_QUOTE_SOURCE)} · ${nf(FACTORY_QUOTES.reduce((a,x)=>a+x.total,0),0)} RMB · ${esc(FACTORY_QUOTE_CURRENCY.note)}. Vente : ${esc(SALE_QUOTE_SOURCE)} · ${eur(SALE_QUOTES.reduce((a,x)=>a+x.total,0),0)}. Achat converti au taux yuan du hub, sans transport ni frais : écart indicatif, marges à valider.</p>`}
 {const _gCat=gCat,_gHyp=gHyp;gCat=function(){_gCat();const b=factoryBox(GP);if(b)document.querySelector('#gp-cat .pn')?.insertAdjacentHTML('afterbegin',b)};gHyp=function(){_gHyp();const b=factoryBox(GP);if(b)$('gp-hyp').insertAdjacentHTML('afterbegin',b)}}
 let PRICE_TIERS=()=>[];// paliers personnalisés d’un produit (réaffecté par le bloc TABLE PRICING)
 const QS=[200,300,500,1000,2000,3000,5000];
@@ -2676,7 +2711,7 @@ if(HV&&!RM){document.addEventListener('pointermove',e=>{const c=e.target.closest
       <section id="hub-markets" hidden aria-label="Marchés des matières"></section>
       <div class="hub-toolbar"><label class="hub-search">${icon('search')}<input id="hub-search" type="search" autocomplete="off" placeholder="Rechercher un produit…" aria-label="Rechercher un produit"></label><div class="hub-filters" aria-label="Filtrer par catégorie">${[['all', 'Tous les produits'], ['packaging', 'Packaging'], ['imprimes', 'Imprimés'], ['textile', 'Textile'], ['accessoires', 'Accessoires']].map(([id, name]) => `<button type="button" data-hub-category="${id}" aria-pressed="${id === state.category}">${name}</button>`).join('')}</div></div>
       <p class="hub-result-count" role="status" aria-live="polite"></p><div id="hub-products" class="hub-products"></div>
-      <footer class="hub-footer"><p>Prix indicatifs HT · quantités de référence affichées</p>${FACTORY_QUOTES.length ? '<details data-factory-quotes><summary>Coûts usine reçus · ' + FACTORY_QUOTE_SOURCE + '</summary>' + factoryTable() + '</details>' : ''}<details><summary>À propos des tarifs</summary><p>Chaque produit garde ses propres hypothèses. Le taux RMB, la TVA et les réserves sont partagés. Ouvrez un produit pour consulter ses coûts, ses marges et ses conditions de transport.</p></details></footer>
+      <footer class="hub-footer"><p>Prix indicatifs HT · quantités de référence affichées</p>${FACTORY_QUOTES.length ? '<details data-factory-quotes style="flex-basis:100%;order:3"><summary>Prix d’achat et prix de vente · référence Cricket</summary>' + factoryTable() + '</details>' : ''}<details><summary>À propos des tarifs</summary><p>Chaque produit garde ses propres hypothèses. Le taux RMB, la TVA et les réserves sont partagés. Ouvrez un produit pour consulter ses coûts, ses marges et ses conditions de transport.</p></details></footer>
     </div>`;
     const theme = host.querySelector('#hub-theme');
     theme.value = document.documentElement.dataset.theme || 'auto';
