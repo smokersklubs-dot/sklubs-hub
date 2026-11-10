@@ -1386,6 +1386,24 @@ const eur=(x,d=2)=>x==null||isNaN(x)?'–':nf(x,d)+' €';
 const pct=(x,d=0)=>x==null||isNaN(x)?'–':nf(x*100,d)+' %';
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const MAT={'MOPP/VMPET/PE':'Métallisé','MOPP/AL/PE':'Aluminium'};
+/* FACTORY QUOTES START : copie de src/crm/factory-quotes.mjs (sans export) */
+// Coûts d'usine REÇUS (devis fournisseur), par produit du hub. Information seulement : aucun prix de vente n'est calculé
+// à partir de ces montants, aucun réglage de prix (cost0, formules, marges) n'est modifié. La marge reste « à valider »
+// par Lemexx. Un produit absent du hub (product: null) est « Hors hub / tarif à saisir », sans configuration inventée.
+// Ce bloc est recopié tel quel dans public/index.html (sans les `export`).
+const FACTORY_QUOTE_SOURCE = 'Shenzhen Creative Star — fiche Cricket, 10/11/2026';
+const FACTORY_QUOTE_CURRENCY = { code: 'CNY', confirmed: false, note: 'Devise non écrite sur la fiche : RMB (CNY) à confirmer' };
+// line : n° de ligne de la fiche ; q : quantité cotée (palier unique) ; unit et total en RMB ; sample : échantillon en RMB.
+const FACTORY_QUOTES = [
+];
+const factoryQuotesFor = (id) => FACTORY_QUOTES.filter((x) => x.product === id);
+const factoryQuotesOffHub = () => FACTORY_QUOTES.filter((x) => !x.product);
+/* FACTORY QUOTES END */
+// Coût usine reçu : encadré d'information dans « Tarif détaillé » et « Hypothèses » du produit. Aucun prix n'en dépend.
+const factorySample=x=>(x.sampleApprox?'environ ':'')+nf(x.sample,0)+' RMB'+(x.sampleNote?' ('+esc(x.sampleNote)+')':'');
+function factoryBox(id){return factoryQuotesFor(id).map(x=>`<section data-factory-quote style="margin:0 0 14px;padding:12px 14px;border:1px dashed var(--ln);border-radius:14px"><b>Coût usine reçu · ${nf(x.unit,2)} RMB / pièce à ${nf(x.q,0)} pièces</b><p class="note" style="margin:6px 0">${esc(FACTORY_QUOTE_SOURCE)} · ${esc(x.spec)} · ${x.designs} design${x.designs>1?'s':''} · total ${nf(x.total,0)} RMB · échantillon ${factorySample(x)} · délai échantillon ${esc(x.sampleDays)} j · production ${esc(x.productionDays)} j.</p><p class="note"><span class="chip wn">Prix de vente inchangé</span> <span class="chip wn">Marge à valider</span> <span class="chip">${esc(FACTORY_QUOTE_CURRENCY.note)}</span></p></section>`).join('')}
+function factoryTable(){return FACTORY_QUOTES.length?`<div class="tw" style="max-height:none"><table><thead><tr><th>#</th><th class="l">Produit</th><th class="l">Matière / taille</th><th>Designs</th><th>Qté</th><th>Unitaire RMB</th><th>Total RMB</th><th>Échantillon</th><th>Délai éch. (j)</th><th>Délai prod. (j)</th><th class="l">Dans le hub</th></tr></thead><tbody>${FACTORY_QUOTES.map(x=>`<tr><td>${x.line}</td><td class="l">${esc(x.label)}</td><td class="l">${esc(x.spec)}</td><td>${x.designs}</td><td>${nf(x.q,0)}</td><td>${nf(x.unit,2)}</td><td>${nf(x.total,0)}</td><td>${factorySample(x)}</td><td>${esc(x.sampleDays)}</td><td>${esc(x.productionDays)}</td><td class="l">${x.product?'Produit existant · prix inchangé':'Hors hub · tarif à saisir'}</td></tr>`).join('')}</tbody></table></div><p class="note">${esc(FACTORY_QUOTE_SOURCE)} · total ${nf(FACTORY_QUOTES.reduce((a,x)=>a+x.total,0),0)} RMB · ${esc(FACTORY_QUOTE_CURRENCY.note)}. Aucun prix de vente calculé, marges à valider.</p>`:''}
+{const _gCat=gCat,_gHyp=gHyp;gCat=function(){_gCat();const b=factoryBox(GP);if(b)document.querySelector('#gp-cat .pn')?.insertAdjacentHTML('afterbegin',b)};gHyp=function(){_gHyp();const b=factoryBox(GP);if(b)$('gp-hyp').insertAdjacentHTML('afterbegin',b)}}
 let PRICE_TIERS=()=>[];// paliers personnalisés d’un produit (réaffecté par le bloc TABLE PRICING)
 const QS=[200,300,500,1000,2000,3000,5000];
 /* ---------- hypothèses ---------- */
@@ -2046,7 +2064,7 @@ document.addEventListener('click',e=>{if(view!='g')return;const k=e.target.close
 let GCF={v:'',q:''},gsort={k:'v',d:1},gcatRows=[];
 const GCOLS=[['vn','Variante','l'],['q','Qté'],['price','Prix HT'],['remise','Remise'],['cost','Coût usine €'],['tr','Transport €'],['rendu','Prix rendu'],['marge','Marge'],['gap','Écart marché'],['ttc','Prix TTC'],['total','Total HT'],['margeEur','Marge €']];
 function gCat(){const h=gH();$('gp-cat').innerHTML=`<div class="pn"><div class="bar"><div class="fl"><label for="gf-v">Variante</label><select id="gf-v"><option value="">Toutes</option>${h.vars.map(x=>`<option value="${esc(x.id)}"${GCF.v==x.id?' selected':''}>${esc(x.n)}</option>`).join('')}</select></div><div class="fl"><label for="gf-q">Quantité</label><select id="gf-q"><option value="">Toutes</option>${gqs().map(q=>`<option value="${q}"${GCF.q==q?' selected':''}>${nf(q,0)}</option>`).join('')}</select></div><button class="btn g" id="gcsv">Exporter en CSV</button><span class="note" id="gcnt"></span></div><p class="note" style="margin-bottom:10px">Les paliers vont de 100 à 10 000 pièces, plus ta quantité de référence (${nf(h.q0,0)}). Prix départ usine.</p><div class="tw" id="gtw"></div></div>`;gCatBody()}
-const gqs=()=>[...new Set([...GQ,gH().q0])].sort((a,b)=>a-b);
+const gqs=()=>[...new Set([...GQ,gH().q0,...factoryQuotesFor(GP).map(x=>x.q)])].sort((a,b)=>a-b);
 function gCatBody(){const h=gH(),gt=PRICE_TIERS(GP);let rows=[];h.vars.forEach(v=>{const extra=gt.filter(t=>t.v==v.id&&!gqs().includes(t.q)).map(t=>t.q);[...new Set([...gqs(),...extra])].sort((a,b)=>a-b).forEach(q=>{const r=gmodel({q,v:v.id},h),g=ggap(GP,q,v.id,h);rows.push({...r,vid:v.id,vn:v.n,gap:g.near?g.g:null,ref:q==h.q0,tier:extra.includes(q)})})});
  rows=rows.filter(r=>(!GCF.v||r.vid==GCF.v)&&(!GCF.q||r.q==GCF.q));rows.sort((a,b)=>{const x=a[gsort.k],y=b[gsort.k];if(x==null||y==null)return(x==null)-(y==null);return(typeof x=='string'?x.localeCompare(y,'fr',{numeric:true}):x-y)*gsort.d});$('gcnt').textContent=rows.length+' lignes';
  $('gtw').innerHTML=`<table><thead><tr>${GCOLS.map(c=>`<th class="${c[2]||''}" tabindex="0" data-gk2="${c[0]}" aria-sort="${gsort.k==c[0]?(gsort.d>0?'ascending':'descending'):'none'}">${c[1]}</th>`).join('')}</tr></thead><tbody>${rows.map((r,i)=>`<tr data-gr="${i}" tabindex="0" role="button"><td class="l">${esc(r.vn)}${r.ref?' <span class="chip">référence</span>':''}</td><td>${nf(r.q,0)}${r.tier?' <span class="chip">palier ajouté</span>':''}</td><td style="font-weight:600">${nf(r.price,3)}</td><td>${r.q<=100?'–':'−'+pct(r.remise,0)}</td><td>${r.known?nf(r.cost,3):'–'}</td><td>${nf(r.tr,3)}</td><td>${nf(r.rendu,3)}</td><td>${r.known?`<span class="chip ${r.marge<h.mS?'wn':'ok'}">${pct(r.marge)}</span>`:'–'}</td><td>${r.gap==null?'–':`<span class="chip ${r.gap>.12?'bd':r.gap>.03?'wn':'ok'}">${r.gap>0?'+':''}${pct(r.gap,1)}</span>`}</td><td>${nf(r.ttc,3)}</td><td>${nf(r.total,0)}</td><td>${r.known?nf(r.margeEur,0):'–'}</td></tr>`).join('')}</tbody></table>`;gcatRows=rows}
@@ -2498,7 +2516,7 @@ if(HV&&!RM){document.addEventListener('pointermove',e=>{const c=e.target.closest
       {id: 'packaging', name: 'Packaging', items: [{id: 'mylar', name: 'Sacs Mylar', img: '/img/mylar/doypack_zip_10.jpg', value: values.length ? Math.min(...values) : null, from: true, quantity: nf(FM.length, 0) + ' formats · 5 000 pièces'}]},
       {id: 'imprimes', name: 'Imprimés', items: [{id: 'stk', name: 'Stickers', img: GIMG.sticker_hero, value: zmodel({sh: 'rond', w: 50, h: 50, q: 500, mat: 'vin', fin: 'mat', cond: 'unit'}).price, quantity: 'Rond 50 mm · 500 pièces'}, generic('patch'), generic('lanyard'), {name: 'Cartes de visite', off: true, quantity: 'Prix de vente à compléter'}]},
       {id: 'textile', name: 'Textile', items: ['tshirt', 'cap', 'beanie', 'bucket', 'sock', 'tote'].map(generic)},
-      {id: 'accessoires', name: 'Accessoires', items: ['pin', 'badge', 'bottle', 'pen'].map(generic)}
+      {id: 'accessoires', name: 'Accessoires', items: [...['pin', 'badge', 'bottle', 'pen'].map(generic), ...factoryQuotesOffHub().map(x => ({name: x.label, off: true, quantity: 'Hors hub · tarif à saisir'}))]}
     ];
   }
   function shell() {
@@ -2513,7 +2531,7 @@ if(HV&&!RM){document.addEventListener('pointermove',e=>{const c=e.target.closest
       <section id="hub-markets" hidden aria-label="Marchés des matières"></section>
       <div class="hub-toolbar"><label class="hub-search">${icon('search')}<input id="hub-search" type="search" autocomplete="off" placeholder="Rechercher un produit…" aria-label="Rechercher un produit"></label><div class="hub-filters" aria-label="Filtrer par catégorie">${[['all', 'Tous les produits'], ['packaging', 'Packaging'], ['imprimes', 'Imprimés'], ['textile', 'Textile'], ['accessoires', 'Accessoires']].map(([id, name]) => `<button type="button" data-hub-category="${id}" aria-pressed="${id === state.category}">${name}</button>`).join('')}</div></div>
       <p class="hub-result-count" role="status" aria-live="polite"></p><div id="hub-products" class="hub-products"></div>
-      <footer class="hub-footer"><p>Prix indicatifs HT · quantités de référence affichées</p><details><summary>À propos des tarifs</summary><p>Chaque produit garde ses propres hypothèses. Le taux RMB, la TVA et les réserves sont partagés. Ouvrez un produit pour consulter ses coûts, ses marges et ses conditions de transport.</p></details></footer>
+      <footer class="hub-footer"><p>Prix indicatifs HT · quantités de référence affichées</p>${FACTORY_QUOTES.length ? '<details data-factory-quotes><summary>Coûts usine reçus · ' + FACTORY_QUOTE_SOURCE + '</summary>' + factoryTable() + '</details>' : ''}<details><summary>À propos des tarifs</summary><p>Chaque produit garde ses propres hypothèses. Le taux RMB, la TVA et les réserves sont partagés. Ouvrez un produit pour consulter ses coûts, ses marges et ses conditions de transport.</p></details></footer>
     </div>`;
     const theme = host.querySelector('#hub-theme');
     theme.value = document.documentElement.dataset.theme || 'auto';
