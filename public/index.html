@@ -1282,6 +1282,10 @@ body:has(#app-mylar.mylar-consultation:not([hidden])) > .w {max-width:1540px}
 .kraft-box h2 {font-size:18px;margin:0 0 6px}
 .kraft-box p {margin:0 0 6px}
 #app-mylar #p-cat.kraft-view #tw {display:block!important}
+.kraft-box.food-box {border-color:#9cc7a8;background:#eef8f1}
+.food-list table td,.food-list table th {white-space:nowrap}
+.food-list .food-eur {display:block;font-size:11px;color:var(--mut)}
+#app-mylar #p-cat.food-view #tw,#app-mylar #p-cat.food-view [data-mylar-card-container],#app-mylar #p-cat.food-view #mylar-tariff-views,#app-mylar #p-cat.food-view #mylar-tariff-filters,#app-mylar #p-cat.food-view .bar,#app-mylar #p-cat.food-view .price-table-tools,#app-mylar #p-cat.food-view .kraft-box:not(.food-box),#app-mylar #p-cat.food-view .mylar-tariff-context {display:none!important}
 #app-mylar #p-cat.kraft-view [data-mylar-card-container],#app-mylar #p-cat.kraft-view #mylar-tariff-views,#app-mylar #p-cat.kraft-view .bar .fl {display:none!important}
 #app-mylar .price-table-editing [data-mylar-card-container] {display:none!important}
 [data-price-pick] {position:sticky;left:0;background:var(--pn);z-index:1;min-width:48px}
@@ -1436,6 +1440,73 @@ function offCatalogCost(item, q, H, materialAdjustment = 0) {
 }
 const offCatalogKey = (ref, q) => JSON.stringify(['mylar', 'hors-catalogue', String(ref), Number(q)]);
 /* MYLAR OFF CATALOG END */
+/* MYLAR FOOD LIST START : copie de src/crm/mylar-food-list.mjs (sans export) */
+// Liste d'ACHAT « Mylar alimentaire (spécial) » — usine Hongbang Packaging. Liste séparée des prix Mylar existants
+// (autre usine, autre devise, autres quantités) : elle ne passe par aucune formule du hub et ne produit aucun prix de vente.
+// Coûts usine en USD par sachet, tels que reçus ; marge « à valider ». La page affiche aussi l'équivalent en euros avec le
+// taux USD → EUR relevé automatiquement (BCE, comme le yuan) ; sans taux relevé, aucun euro n'est affiché ni inventé.
+// Tailles en cm (largeur × hauteur + soufflet).
+// Ce bloc est recopié tel quel dans public/index.html (sans les `export`).
+const MYLAR_FOOD_LIST = {
+  id: 'mylar-alimentaire-hongbang', name: 'Mylar alimentaire (spécial)', label: 'alimentaire',
+  supplier: 'Hongbang Packaging (depuis 1999)', source: 'Hongbang Packaging — fiche tarifaire reçue le 10/11/2026', receivedAt: '2026-11-10',
+  priceNote: 'Prix basés sur les prix matière actuels, légèrement variables.',
+  transcription: 'Chiffres transcrits depuis une capture d’écran de téléphone : à relire avec le fichier original de l’usine avant toute mise en vente.',
+  currency: 'USD', material: 'MOPP/VMPET/PE', tiers: [500, 1000, 2000, 3000, 5000, 8000, 10000],
+  models: [
+    { id: 'flat-bottom', name: 'Fond plat avec zip et encoches', decimals: 2, rows: [
+      { size: '9×13+6', w: 9, h: 13, g: 6, th: 100, p: [1.41, 0.76, 0.43, 0.31, 0.21, 0.16, 0.15] },
+      { size: '10×15+6', w: 10, h: 15, g: 6, th: 100, p: [1.44, 0.77, 0.44, 0.32, 0.22, 0.17, 0.16] },
+      { size: '11×18+6', w: 11, h: 18, g: 6, th: 100, p: [1.49, 0.83, 0.52, 0.38, 0.29, 0.23, 0.21] },
+      { size: '12×17+8', w: 12, h: 17, g: 8, th: 100, p: [1.53, 0.86, 0.54, 0.4, 0.31, 0.25, 0.23] },
+      { size: '12×20+8', w: 12, h: 20, g: 8, th: 120, p: [1.58, 0.89, 0.57, 0.42, 0.33, 0.27, 0.25] },
+      { size: '13×18+8', w: 13, h: 18, g: 8, th: 120, p: [1.57, 0.88, 0.56, 0.41, 0.33, 0.27, 0.25] },
+      { size: '14×20+8', w: 14, h: 20, g: 8, th: 120, p: [1.61, 0.92, 0.59, 0.44, 0.35, 0.28, 0.27] },
+      { size: '15×22+8', w: 15, h: 22, g: 8, th: 120, p: [1.62, 0.93, 0.61, 0.46, 0.37, 0.3, 0.28] },
+      { size: '16×24+8', w: 16, h: 24, g: 8, th: 120, p: [1.66, 0.97, 0.62, 0.49, 0.38, 0.33, 0.31] },
+      { size: '18×26+8', w: 18, h: 26, g: 8, th: 120, p: [1.69, 0.99, 0.64, 0.5, 0.4, 0.35, 0.33] },
+      { size: '20×30+10', w: 20, h: 30, g: 10, th: 140, p: [2.27, 1.33, 0.91, 0.7, 0.56, 0.5, 0.47] },
+      { size: '22×32+10', w: 22, h: 32, g: 10, th: 140, p: [2.29, 1.41, 0.97, 0.75, 0.61, 0.55, 0.53] },
+      { size: '24×37+10', w: 24, h: 37, g: 10, th: 140, p: [2.67, 1.75, 1.32, 1.06, 0.83, 0.77, 0.76] },
+      { size: '23×38+12', w: 23, h: 38, g: 12, th: 140, p: [2.77, 1.86, 1.42, 1.14, 0.88, 0.85, 0.83] },
+    ] },
+    { id: 'stand-up', name: 'Debout (stand up) avec zip et encoches', decimals: 3, rows: [
+      { size: '9×13+6', w: 9, h: 13, g: 6, th: 100, p: [0.108, 0.286, 0.176, 0.119, 0.093, 0.079, 0.073] },
+      { size: '10×15+6', w: 10, h: 15, g: 6, th: 100, p: [0.112, 0.365, 0.233, 0.201, 0.157, 0.135, 0.118] },
+      { size: '12×20+8', w: 12, h: 20, g: 8, th: 120, p: [0.118, 0.369, 0.266, 0.213, 0.173, 0.149, 0.138] },
+      { size: '14×20+8', w: 14, h: 20, g: 8, th: 120, p: [0.126, 0.392, 0.286, 0.23, 0.195, 0.166, 0.155] },
+      { size: '15×22+8', w: 15, h: 22, g: 8, th: 120, p: [0.128, 0.414, 0.305, 0.253, 0.213, 0.178, 0.176] },
+      { size: '16×24+8', w: 16, h: 24, g: 8, th: 140, p: [0.191, 0.601, 0.419, 0.337, 0.279, 0.226, 0.218] },
+      { size: '18×26+8', w: 18, h: 26, g: 8, th: 140, p: [0.203, 0.638, 0.457, 0.372, 0.289, 0.257, 0.252] },
+      { size: '20×30+10', w: 20, h: 30, g: 10, th: 140, p: [0.216, 0.702, 0.518, 0.407, 0.347, 0.313, 0.312] },
+    ] },
+  ],
+  // Valeurs douteuses : importées telles quelles, marquées « à vérifier », inutilisables pour un prix de vente tant que
+  // Lemexx ne les a pas confirmées. Sans `size` : toute la colonne du modèle.
+  toVerify: [
+    { model: 'stand-up', q: 500, why: 'Colonne 500 plus basse que la colonne 1 000 : impossible, probable erreur de l’usine (virgule ou chiffre manquant). À redemander.' },
+    { model: 'stand-up', size: '9×13+6', q: 1000, why: 'Saut anormal 0,286 → 0,365 entre 9×13+6 et 10×15+6 à 1 000 pièces.' },
+    { model: 'stand-up', size: '10×15+6', q: 1000, why: 'Saut anormal 0,286 → 0,365 entre 9×13+6 et 10×15+6 à 1 000 pièces.' },
+    { model: 'stand-up', size: '15×22+8', q: 10000, why: '0,176 à 10 000 presque égal au prix à 8 000 (0,178).' },
+  ],
+};
+/** Motif « à vérifier » d'une cellule, ou null si la valeur n'est pas signalée. */
+const foodToVerify = (model, size, q, list = MYLAR_FOOD_LIST) => (list.toVerify.find((x) => x.model === model && x.q === q && (!x.size || x.size === size)) || {}).why || null;
+/** Coût usine USD d'une cellule : { usd, toVerify } ; null si la taille ou la quantité n'est pas sur la fiche. */
+function foodCost(model, size, q, list = MYLAR_FOOD_LIST) {
+  const m = list.models.find((x) => x.id === model), r = m && m.rows.find((x) => x.size === size), i = list.tiers.indexOf(q);
+  return r && i >= 0 ? { usd: r.p[i], toVerify: foodToVerify(model, size, q, list) } : null;
+}
+/* MYLAR FOOD LIST END */
+let FOOD_VIEW=false;// liste d'achat « Mylar alimentaire (spécial) » : écran à part dans les sachets Mylar
+let FOOD_FX=null;// taux USD → EUR relevé par le hub (null : pas encore lu ; false : indisponible)
+function foodFx(){if(FOOD_FX!==null)return;FOOD_FX=false;fetch('/api/market-live',{cache:'no-store'}).then(r=>r.ok?r.json():null).then(d=>{const x=d&&d.exchangeUsd;if(x&&x.rate>.5&&x.rate<1.5){FOOD_FX={rate:x.rate,date:x.date,source:x.source,cached:x.status==='cached'};if(FOOD_VIEW&&view==='mylar'&&cur==='cat')render()}}).catch(()=>{})}
+function foodPanel(){if(KRAFT_VIEW)return '';const o=MYLAR_FOOD_LIST,flagged=o.models.reduce((a,m)=>a+m.rows.reduce((b,r)=>b+o.tiers.filter(q=>foodToVerify(m.id,r.size,q)).length,0),0);
+ if(FOOD_VIEW)foodFx();
+ if(!FOOD_VIEW)return `<section class="kraft-box food-box"><div><b>${esc(o.name)} · liste d’achat à part</b> <span class="chip ok">${esc(o.label)}</span><p class="note">${esc(o.supplier)} · ${o.models.map(m=>m.rows.length+' tailles '+esc(m.name.split(' avec')[0].toLowerCase())).join(' · ')} · coûts usine en ${o.currency} · marge à valider</p></div><button class="btn" type="button" data-food-open>Ouvrir la liste alimentaire</button></section>`;
+ const table=m=>`<h3 style="margin:16px 0 8px">${esc(m.name)} <span class="chip ok">${esc(o.label)}</span></h3><div class="tw" style="max-height:none"><table><thead><tr><th class="l">Taille (cm)</th><th class="l">Matière / épaisseur</th>${o.tiers.map(q=>`<th>${nf(q,0)}${foodToVerify(m.id,null,q)?' ⚠':''}</th>`).join('')}</tr></thead><tbody>${m.rows.map(r=>`<tr><td class="l">${esc(r.size)}</td><td class="l">${esc(o.material)} ${r.th} µ</td>${r.p.map((v,i)=>{const why=foodToVerify(m.id,r.size,o.tiers[i]);return `<td${why?' title="'+esc(why)+'"':''}>${nf(v,m.decimals)} $${FOOD_FX?'<small class="food-eur">'+nf(v*FOOD_FX.rate,3)+' €</small>':''}${why?' <span class="chip wn">à vérifier</span>':''}</td>`}).join('')}</tr>`).join('')}</tbody></table></div>`;
+ return `<section class="food-list"><div class="kraft-box food-box kraft-open"><div><h2>${esc(o.name)} <span class="chip ok">${esc(o.label)}</span></h2><p><span class="chip wn">Coûts usine en ${o.currency} · aucun prix de vente · marge à valider</span></p><p class="note">Fournisseur : ${esc(o.supplier)}. Source : ${esc(o.source)}. ${esc(o.priceNote)}</p><p class="note">${esc(o.transcription)}</p><p class="note">Liste séparée des prix Mylar non alimentaires : elle ne modifie aucun prix existant. </p><p class="note" data-food-fx>${FOOD_FX?'<b>1 USD = '+nf(FOOD_FX.rate,5)+' EUR</b> · '+esc(FOOD_FX.source)+' · observation '+esc(FOOD_FX.date)+(FOOD_FX.cached?' · dernière valeur conservée':'')+'. Équivalent en euros indicatif, sous chaque prix : coût usine seul, sans transport, réserve ni marge.':'Taux dollar pas encore relevé : coûts affichés en dollars seulement. Il est relevé automatiquement chaque jour (BCE) ; pour l’avoir tout de suite, ouvrez « Marchés » sur l’accueil puis « Actualiser les données ».'}</p><button class="btn g" type="button" data-food-close>← Revenir aux sacs Mylar</button></div></div>${o.models.map(table).join('')}<h3 style="margin:16px 0 8px">Valeurs à vérifier · ${flagged} cellules</h3>${o.toVerify.map(x=>`<p class="note"><span class="chip wn">à vérifier</span> ${esc(o.models.find(m=>m.id===x.model).name.split(' avec')[0])} · ${x.size?esc(x.size)+' · ':'toute la colonne '}${nf(x.q,0)} pièces : ${esc(x.why)}</p>`).join('')}<p class="note">Ces valeurs ne servent à aucun prix de vente tant que vous ne les avez pas confirmées.</p></section>`}
+document.addEventListener('click',e=>{if(e.target.closest('[data-food-open]'))go('mylar-food');else if(e.target.closest('[data-food-close]'))go('mylar')});
 let KRAFT_VIEW=false;// case « Sacs Kraft » : tarif à part de la liste Mylar
 const MATKEYS=Object.keys(MAT).filter(k=>!offCatalogMaterial(k));// matières du catalogue Mylar (filtres, galerie, veille)
 function kraftPanel(){return MYLAR_OFF_CATALOG.map(o=>{const img=`<img src="/img/${o.image}" alt="${esc(o.group+' · '+o.name)}" loading="lazy">`;
@@ -1575,7 +1646,7 @@ let CF={t:'',m:'',q:'',s:'',over:false},sort={k:'ref',d:1};
 const COLS=[['ref','Réf.','l'],['t','Type','l'],['m','Matière','l'],['dim','L×H+G'],['q','Qté'],['rmb','Usine RMB'],['usine','Usine €'],['w','Poids g'],['tr','Transport €'],['fx','Frais fixes €'],['cout','Coût de revient'],['mk','Marché'],['price','Prix HT'],['marge','Marge'],['gap','Écart'],['ttc','Prix TTC'],['total','Total HT'],['margeEur','Marge €']];
 function renderCat(){
  const o=(a,v,f=x=>x)=>`<option value="">Tous</option>`+a.map(x=>`<option value="${esc(x)}"${x==v?' selected':''}>${esc(f(x))}</option>`).join('');
- $('p-cat').innerHTML=`<div class="pn"><div class="bar"><div class="fl"><label for="f-t">Type</label><select id="f-t">${o(TYPES,CF.t)}</select></div><div class="fl"><label for="f-m">Matière</label><select id="f-m">${o(MATKEYS,CF.m,x=>MAT[x])}</select></div><div class="fl"><label for="f-q">Quantité</label><select id="f-q">${o(QS,CF.q,x=>nf(x,0))}</select></div><div class="fl"><label for="f-s">Référence</label><input id="f-s" type="search" placeholder="K7, Q2…" value="${esc(CF.s)}"></div><div class="fl"><label for="f-o">Seulement</label><select id="f-o"><option value="">Toutes les lignes</option><option value="1"${CF.over?' selected':''}>Au-dessus du marché</option></select></div><button class="btn g" id="csv">Exporter en CSV</button><span class="note" id="cnt"></span></div>${kraftPanel()}<div class="tw" id="tw"></div></div>`;$('p-cat').classList.toggle('kraft-view',KRAFT_VIEW);catBody()}
+ $('p-cat').innerHTML=`<div class="pn"><div class="bar"><div class="fl"><label for="f-t">Type</label><select id="f-t">${o(TYPES,CF.t)}</select></div><div class="fl"><label for="f-m">Matière</label><select id="f-m">${o(MATKEYS,CF.m,x=>MAT[x])}</select></div><div class="fl"><label for="f-q">Quantité</label><select id="f-q">${o(QS,CF.q,x=>nf(x,0))}</select></div><div class="fl"><label for="f-s">Référence</label><input id="f-s" type="search" placeholder="K7, Q2…" value="${esc(CF.s)}"></div><div class="fl"><label for="f-o">Seulement</label><select id="f-o"><option value="">Toutes les lignes</option><option value="1"${CF.over?' selected':''}>Au-dessus du marché</option></select></div><button class="btn g" id="csv">Exporter en CSV</button><span class="note" id="cnt"></span></div>${kraftPanel()}${foodPanel()}<div class="tw" id="tw"></div></div>`;$('p-cat').classList.toggle('kraft-view',KRAFT_VIEW);$('p-cat').classList.toggle('food-view',FOOD_VIEW);catBody()}
 function catBody(){
  let rows=R.map(r=>({...r,dim:r.L*1000+r.H}));
  const mt=PRICE_TIERS('mylar').map(t=>({t,f:FM.find(x=>x.t==t.t&&x.th==t.th&&Math.abs(x.L-t.L)<1.5&&Math.abs(x.H-t.H)<1.5&&Math.abs(x.G-t.G)<1.5)})).filter(x=>x.f&&x.f.rmb[x.t.q]==null);
@@ -2228,7 +2299,7 @@ function renderHub(){
  const all=cols.flatMap(c=>c[2]).filter(x=>!x.off),nv=GPD.reduce((a,p)=>a+(GV[p.id]||gseedFor(p.id)).length,0);
  let i=0;const card=(p,c)=>{const t=p.off?'div':'button';return `<${t} class="kc an${p.off?' off':''}" style="--i:${i++};--cc:${c}" ${p.off?'aria-disabled="true"':`data-go="${p.id}"`}>${p.img?`<span class="kimg"><img src="${p.img}" alt="${esc(p.n)}" loading="lazy"></span>`:''}<span class="kh"><span class="pi">${p.svg}</span><b>${p.n}</b></span><span class="kp">${p.big}</span><span class="note">${p.sub}</span>${p.spark&&p.spark.length>1?`<span class="ks">${gspark(p.spark,200,38)}</span>`:''}<span class="kx">${p.chips.map(x=>`<span class="chip ${x[0]}">${x[1]}</span>`).join('')}</span></${t}>`};
  $('hub-cards').innerHTML=`<div class="grid kpis" style="margin-bottom:18px">${kpi('Produits pilotés',nf(all.length,0),'sur '+nf(all.length+1,0)+' prévus')}${kpi('Prix de vente en base',nf(GPD.length+2,0),'référence conservée, paliers calculés')}${kpi('Relevés concurrents',nf(nv+ZVEI.length+VEI.length,0),'sources et TVA à vérifier avant usage')}${kpi('Quantités',"100 → 10 000",'paliers dégressifs sur chaque produit')}</div>${mkStrip()}<div class="kb">${cols.map(([t,c,L])=>`<section class="kcol" style="--cc:${c}"><div class="kct"><i></i><h2>${t}</h2><span class="chip">${L.length}</span></div>${L.map(p=>card(p,c)).join('')}</section>`).join('')}</div>`}
-function go(v){if(v==='mylar-kraft'){KRAFT_VIEW=true;cur='cat';v='mylar'}else KRAFT_VIEW=false;if(typeof v=='string'&&v.indexOf('g:')==0){GP=v.slice(2);v='g'}view=v;try{localStorage.setItem('sk_view',v=='g'?'g:'+GP:v)}catch(e){}$('hub').hidden=v!='hub';$('app-mylar').hidden=v!='mylar';$('app-stk').hidden=v!='stk';$('app-g').hidden=v!='g';GVSEL=null;GS={v:null,q:null,mode:null,ro:''};GVF={id:null};GCF={v:'',q:''};document.title=v=='mylar'?'Sachets Mylar · SKLUBS':v=='stk'?'Stickers · SKLUBS':v=='g'?gdef(GP).n+' · SKLUBS':'Pilotage des prix SKLUBS';{const zi=$('z-himg');if(zi&&GIMG.sticker_hero){zi.src=GIMG.sticker_hero;zi.hidden=false}}render();scrollTo(0,0)}
+function go(v){FOOD_VIEW=v==='mylar-food';if(FOOD_VIEW){cur='cat';v='mylar'}if(v==='mylar-kraft'){KRAFT_VIEW=true;cur='cat';v='mylar'}else KRAFT_VIEW=false;if(typeof v=='string'&&v.indexOf('g:')==0){GP=v.slice(2);v='g'}view=v;try{localStorage.setItem('sk_view',v=='g'?'g:'+GP:v)}catch(e){}$('hub').hidden=v!='hub';$('app-mylar').hidden=v!='mylar';$('app-stk').hidden=v!='stk';$('app-g').hidden=v!='g';GVSEL=null;GS={v:null,q:null,mode:null,ro:''};GVF={id:null};GCF={v:'',q:''};document.title=v=='mylar'?'Sachets Mylar · SKLUBS':v=='stk'?'Stickers · SKLUBS':v=='g'?gdef(GP).n+' · SKLUBS':'Pilotage des prix SKLUBS';{const zi=$('z-himg');if(zi&&GIMG.sticker_hero){zi.src=GIMG.sticker_hero;zi.hidden=false}}render();scrollTo(0,0)}
 function render(){if(view=='mylar')renderMylar();else if(view=='stk')renderStk();else if(view=='g')renderG();else renderHub()}
 
 function zmatGal(){const L=[['sticker_hero','Vinyle blanc'],['sticker_clear','Vinyle transparent'],['sticker_holo','Holographique'],['sticker_metal','Métallisé or / argent'],['sticker_kraft','Papier kraft']].filter(x=>GIMG[x[0]]);if(!L.length)return'';
@@ -3002,7 +3073,7 @@ function watchMylarModel(H,rmb,mk,th,L,Hh,q,rateOverride,mode,G,ty){mk=mk*MKF;
  function marketPanel(){
   const panel=$('hub-markets');if(!panel||panel.hidden)return;
   panel.innerHTML='<section class="watch-markets pn"><div class="watch-research-heading"><div><h2>Indices matières et taux de change</h2><p>Données officielles · application manuelle aux tarifs</p></div><button type="button" class="btn g" id="watch-market-refresh">Actualiser les données</button></div><p class="watch-caption">Les indices industriels sont principalement mensuels ; le Brent quotidien et le taux de change suivent les publications disponibles. Aucun cours ne modifie vos prix automatiquement.</p><div id="watch-markets-data"><p>Chargement des dernières observations…</p></div><p id="watch-markets-status" role="status"></p></section>';
-  function display(data){marketData=data;const list=Object.values(data.series||{});$('watch-markets-data').innerHTML=(data.exchange?`<p class="watch-exchange"><strong>1 CNY = ${nf(data.exchange.rate,5)} EUR</strong><span>${esc(data.exchange.source)} · observation ${esc(data.exchange.date)}${data.exchange.status==='cached'?' · dernière valeur conservée':''}</span></p>`:'<p>Taux de change indisponible.</p>')+'<div class="watch-market-grid">'+list.map(s=>`<article><h3>${esc(s.n)}</h3><strong>${nf(s.p.at(-1)[1],2)} <small>${esc(s.u)}</small></strong><p>Observation ${esc(s.observationDate||s.p.at(-1)[0])} · ${s.frequency==='daily'?'quotidienne':'mensuelle'}</p><a href="${safeUrl(s.url)}" target="_blank" rel="noopener">${esc(s.s)}</a>${s.status==='cached'?'<p class="watch-alert">Dernière valeur conservée : actualisation indisponible.</p>':''}</article>`).join('')+'</div>';if(data.errors?.length)$('watch-markets-status').textContent=data.errors.length+' source(s) indisponible(s). Les dernières valeurs valides sont conservées.'}
+  function display(data){marketData=data;const list=Object.values(data.series||{});$('watch-markets-data').innerHTML=(data.exchange?`<p class="watch-exchange"><strong>1 CNY = ${nf(data.exchange.rate,5)} EUR</strong><span>${esc(data.exchange.source)} · observation ${esc(data.exchange.date)}${data.exchange.status==='cached'?' · dernière valeur conservée':''}</span></p>`:'<p>Taux de change indisponible.</p>')+(data.exchangeUsd?`<p class="watch-exchange"><strong>1 USD = ${nf(data.exchangeUsd.rate,5)} EUR</strong><span>${esc(data.exchangeUsd.source)} · observation ${esc(data.exchangeUsd.date)}${data.exchangeUsd.status==='cached'?' · dernière valeur conservée':''} · liste Mylar alimentaire</span></p>`:'<p>Taux dollar pas encore relevé : il le sera à la prochaine actualisation.</p>')+'<div class="watch-market-grid">'+list.map(s=>`<article><h3>${esc(s.n)}</h3><strong>${nf(s.p.at(-1)[1],2)} <small>${esc(s.u)}</small></strong><p>Observation ${esc(s.observationDate||s.p.at(-1)[0])} · ${s.frequency==='daily'?'quotidienne':'mensuelle'}</p><a href="${safeUrl(s.url)}" target="_blank" rel="noopener">${esc(s.s)}</a>${s.status==='cached'?'<p class="watch-alert">Dernière valeur conservée : actualisation indisponible.</p>':''}</article>`).join('')+'</div>';if(data.errors?.length)$('watch-markets-status').textContent=data.errors.length+' source(s) indisponible(s). Les dernières valeurs valides sont conservées.'}
   fetch('/api/market-live',{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.json()}).then(display).catch(error=>{if($('watch-markets-data'))$('watch-markets-data').textContent='Chargement impossible : '+error.message});
   $('watch-market-refresh').addEventListener('click',async e=>{const button=e.currentTarget;button.disabled=true;$('watch-markets-status').textContent='Lecture des API publiques en cours…';try{const response=await fetch('/api/market-refresh',{method:'POST',headers:{'X-SK':'1'}});if(!response.ok)throw new Error('HTTP '+response.status);const data=await response.json();display(data);$('watch-markets-status').textContent=(data.errors?.length?data.errors.length+' source(s) indisponible(s). ':'')+'Lecture terminée. Aucun tarif modifié.'}catch(error){$('watch-markets-status').textContent='Actualisation impossible : '+error.message}finally{button.disabled=false}});
  }

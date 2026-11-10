@@ -6,6 +6,8 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { allowedName, validDoc, MAX_BODY } from '../src/docs.js';
 import { handleCrm, crmImages } from '../src/crm/route.js';
+import { refreshMarkets } from '../src/market/market-data.mjs';
+import { MARKET_SEED } from '../src/market/market-seed.js';
 import { publicMylarRoute, publicMylarQuoteRoute } from '../src/public-mylar.js';
 import { memoryProposalStore } from '../src/crm/price-proposals.mjs';
 import { proposalsAdminRoute } from '../src/proposals.js';
@@ -18,6 +20,7 @@ const indexHtml = readFileSync(path.join(PUBLIC, 'index.html'));
 const chartJs = readFileSync(path.join(PUBLIC, 'chart.js'));
 const TOKEN = 'jeton-de-recette-locale-sans-valeur-' + 'x'.repeat(12);
 const docs = new Map(); // name -> { data, version }
+let markets = null;
 
 const env = { CRM_API_TOKEN: TOKEN, ...crmImages, PROPOSALS: memoryProposalStore(), DATA: { async get(name) { const d = docs.get(name); return d ? JSON.stringify(d) : null; }, async put() { throw new Error('écriture interdite'); } } };
 const json = (res, status, obj) => { res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }); res.end(JSON.stringify(obj)); };
@@ -61,6 +64,11 @@ http.createServer(async (req, res) => {
     if (url.pathname === '/' || url.pathname === '/index.html') { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); return res.end(indexHtml); }
     if (url.pathname === '/chart.js') { res.writeHead(200, { 'content-type': 'application/javascript; charset=utf-8' }); return res.end(chartJs); }
     if (url.pathname === '/health') return json(res, 200, { ok: true });
+    // Marchés : jeu local des matières + taux de change BCE réels (yuan et dollar), comme /api/market-live en production.
+    if (url.pathname === '/api/market-live' || url.pathname === '/api/market-refresh') {
+      if (!markets || url.pathname === '/api/market-refresh') markets = await refreshMarkets(markets || MARKET_SEED, (u, o) => (String(u).includes('frankfurter') ? fetch(u, o) : Promise.reject(new Error('hors recette'))));
+      return json(res, 200, markets);
+    }
     // Photos du hub, comme le serveur de production (mêmes noms autorisés).
     const img = /^\/img\/(mylar|produits)\/([a-z0-9_]{1,60})\.jpg$/.exec(url.pathname);
     if (img) { try { const data = readFileSync(path.join(PUBLIC, 'img', img[1], img[2] + '.jpg')); res.writeHead(200, { 'content-type': 'image/jpeg' }); return res.end(data); } catch { return json(res, 404, { error: 'introuvable' }); } }
