@@ -1,4 +1,5 @@
 import {calculateNative} from './pricing-engine.mjs';import {createPriceRules} from './price-rules.mjs';import {createCampaignTools,PRODUCT_IDS} from './campaigns.mjs';
+import {offCatalogMaterial,offCatalogByRef,offCatalogCost} from './mylar-off-catalog.mjs';
 const rules=createPriceRules(),campaigns=createCampaignTools(),sites=['com','fr'];
 export function validPublications(doc){return !!(doc&&doc.schema===1&&doc.sites&&sites.every(site=>doc.sites[site]&&typeof doc.sites[site]==='object'&&!Array.isArray(doc.sites[site])&&Object.entries(doc.sites[site]).every(([id,p])=>PRODUCT_IDS.includes(id)&&p&&p.product===id&&['mylar','stk','g'].includes(p.kind)&&p.hyp&&p.shared&&p.scope?.id==='default'&&p.scope.currency==='EUR'&&p.rules&&typeof p.approvedAt==='string'&&(!p.rows||Array.isArray(p.rows)&&p.rows.length<=1000))));}
 // Calcul détaillé partagé (aucune formule dupliquée) : `quote` est la sortie publique, `internal` reste réservé aux routes privées.
@@ -7,6 +8,8 @@ export function priceSnapshot(snapshot,configuration,campaign=null){
  if(configuration.mode&&!Object.hasOwn(snapshot.hyp.modes,configuration.mode))throw new Error('Mode de transport inconnu');
  const p={...configuration};for(const key of ['q','L','H','G','w','h','rate'])if(key in p)p[key]=Number(p[key]);
  if(!Number.isInteger(p.q)||p.q<1||p.q>1e7)throw new Error('Quantité invalide');
+ // Matière Mylar hors catalogue (coût usine reçu, pas de formule) : prix fixé par Lemexx ou rien, jamais une valeur inventée.
+ if(snapshot.kind==='mylar'&&Array.isArray(snapshot.offCatalog)){const item=offCatalogMaterial(p.m,snapshot.offCatalog);if(item)return offCatalogPrice(snapshot,p,item,campaign);}
  if(snapshot.kind==='mylar'&&(!(p.L>0&&p.L<=2000&&p.H>0&&p.H<=2000&&p.G>=0&&p.G<=1000)||p.q<200||p.q>5000))throw new Error('Dimensions ou quantité Mylar hors limites');
  if(snapshot.kind==='stk'&&(!(p.w>0&&p.w<=3000&&p.h>0&&p.h<=3000)||p.q<snapshot.hyp.minQ))throw new Error('Dimensions ou quantité stickers hors limites');
  const calculated=calculateNative(snapshot,p),key=rules.key(snapshot.product,calculated.configuration);
@@ -19,6 +22,19 @@ export function priceSnapshot(snapshot,configuration,campaign=null){
  const quote={product:snapshot.product,scope:snapshot.scope,currency:'EUR',quantity:p.q,unitHT:result.price,totalHT:Math.round(result.price*p.q*100)/100,totalTTC:Math.round(result.price*p.q*(1+snapshot.shared.vat)*100)/100,vat:snapshot.shared.vat,regularUnitHT:regular,promotion:campaign?{id:campaign.id,title:campaign.title,end:campaign.end}:null,estimated:!!calculated.estimated,version:snapshot.approvedAt};
  const unitCost=result.known===false?null:(result.cout??result.cb??null);
  return {quote,configuration:calculated.configuration,internal:{unitCostHT:Number.isFinite(unitCost)?unitCost:null,marginRate:Number.isFinite(unitCost)?(result.price-unitCost)/result.price:null,marginTotalHT:Number.isFinite(unitCost)?(result.price-unitCost)*p.q:null,manualRule:!!result.manual,interpolatedRule:!!result.interpolated,basePriceHT:result.basePrice??regular,...costDetail(snapshot,p,result)}};
+}
+// Prix d'une matière hors catalogue : uniquement le prix fixé par Lemexx à cette quantité exacte (document cfg_price_mylar).
+function offCatalogPrice(snapshot,p,item,campaign){
+ const H=snapshot.shared||snapshot.hyp,vat=H.vat,key=rules.key('mylar',{off:item.ref,q:p.q}),fixed=snapshot.rules?.[key];
+ if(!rules.validPrice(fixed))throw new Error('Prix de vente à saisir dans le hub : « '+item.name+' » est hors catalogue ('+item.status+').');
+ const cost=offCatalogCost(item,p.q,H,snapshot.materialAdjustment||0);
+ let result=rules.apply({q:p.q,price:fixed,floor:0,known:!!cost,...(cost||{}),mk:null},fixed,vat);
+ const regular=result.price;if(campaign)result=campaigns.discount(campaign,result);
+ const quote={product:snapshot.product,scope:snapshot.scope,currency:'EUR',quantity:p.q,unitHT:result.price,totalHT:Math.round(result.price*p.q*100)/100,totalTTC:Math.round(result.price*p.q*(1+vat)*100)/100,vat,regularUnitHT:regular,promotion:campaign?{id:campaign.id,title:campaign.title,end:campaign.end}:null,estimated:false,version:snapshot.approvedAt};
+ const unitCost=cost?cost.cout:null;
+ return {quote,configuration:{m:item.id,q:p.q,offCatalog:true,ref:item.ref},internal:{unitCostHT:unitCost,marginRate:unitCost==null?null:(result.price-unitCost)/result.price,marginTotalHT:unitCost==null?null:(result.price-unitCost)*p.q,manualRule:true,interpolatedRule:false,basePriceHT:null,
+  offCatalog:{material:item.id,name:item.name,status:item.status,receivedAt:item.receivedAt,unknown:item.unknown,marginStatus:'à valider',
+   factoryQuote:cost?{quantity:p.q,factoryUnitHT:cost.usine,freightUnitHT:cost.tr,freightApprox:cost.freightApprox,fixedUnitHT:cost.fx,unitCostHT:cost.cout}:null}}};
 }
 // Détail interne du coût (CRM privé, jamais dans `quote`) : transport au kilo, poids, part usine, frais fixes, plancher, marge minimale.
 function costDetail(snapshot,p,r){
@@ -36,6 +52,7 @@ export function tierConfiguration(snapshot,tier){
  if(!Array.isArray(a)||a[0]!==snapshot.product)return null;
  if(snapshot.kind==='g')return {v:a[1],q:a[2]};
  if(snapshot.kind==='stk')return {sh:a[1],w:a[2],h:a[3],q:a[4],mat:a[5],fin:a[6],cond:a[7]};
+ if(a[1]==='hors-catalogue'){const item=offCatalogByRef(a[2],snapshot.offCatalog);return item?{m:item.id,q:a[3]}:null;}
  // Mylar : la clé ne porte pas la matière ; elle est reprise du format du tarif usine correspondant.
  const row=(snapshot.rows||[]).find(r=>r.t===a[1]&&Number(r.th)===a[2]&&Math.abs(r.L-a[3])<1.5&&Math.abs(r.H-a[4])<1.5&&Math.abs((r.G||0)-a[5])<1.5);
  return row?{t:a[1],m:row.m,L:row.L,H:row.H,G:row.G||0,q:a[6]}:null;

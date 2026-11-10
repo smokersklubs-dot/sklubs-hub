@@ -7,6 +7,7 @@ import {createCurrentPricing} from './current-pricing.mjs';
 import {createPriceRules} from './price-rules.mjs';
 import {PRODUCT_IDS} from './campaigns.mjs';
 import {readOnlyDocument} from './public-pricing.mjs';
+import {MYLAR_OFF_CATALOG} from './mylar-off-catalog.mjs';
 
 const rules=createPriceRules(),clone=x=>JSON.parse(JSON.stringify(x));
 // Documents dont dépend le prix de chaque produit (cfg_hyp porte le taux RMB, la TVA et les réserves partagées).
@@ -25,7 +26,7 @@ export async function currentSnapshots(env,ids=PRODUCT_IDS){
   // Même règle que l'écran du hub : un document de prix fixés invalide rend le tarif indisponible.
   if(price&&!rules.validDocument(id,price)){unreadable.push(id);continue}
   const common={product:id,name:hub.names[id],rules:clone(price?.rules||{}),tiers:clone(price?.tiers||[]),scope:{id:'default',zone:null,country:null,currency:'EUR'},shared:clone(hub.H)};
-  const snapshot=id==='mylar'?{...common,kind:'mylar',hyp:clone(hub.H),rows:clone(hub.rows),marketFactor:hub.MKF,materialAdjustment:hub.MADJ}
+  const snapshot=id==='mylar'?{...common,kind:'mylar',hyp:clone(hub.H),rows:clone(hub.rows),marketFactor:hub.MKF,materialAdjustment:hub.MADJ,offCatalog:clone(MYLAR_OFF_CATALOG)}
    :id==='stk'?{...common,kind:'stk',...clone(hub.sticker())}:{...common,kind:'g',hyp:clone(hub.generic(id))};
   const used=sourceDocuments(id),version=Math.max(0,...used.map(n=>docs[n]?.version||0));
   snapshot.approvedAt=version?new Date(version).toISOString():null;

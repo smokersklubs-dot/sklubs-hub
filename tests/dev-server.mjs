@@ -61,6 +61,9 @@ http.createServer(async (req, res) => {
     if (url.pathname === '/' || url.pathname === '/index.html') { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); return res.end(indexHtml); }
     if (url.pathname === '/chart.js') { res.writeHead(200, { 'content-type': 'application/javascript; charset=utf-8' }); return res.end(chartJs); }
     if (url.pathname === '/health') return json(res, 200, { ok: true });
+    // Photos du hub, comme le serveur de production (mêmes noms autorisés).
+    const img = /^\/img\/(mylar|produits)\/([a-z0-9_]{1,60})\.jpg$/.exec(url.pathname);
+    if (img) { try { const data = readFileSync(path.join(PUBLIC, 'img', img[1], img[2] + '.jpg')); res.writeHead(200, { 'content-type': 'image/jpeg' }); return res.end(data); } catch { return json(res, 404, { error: 'introuvable' }); } }
     return json(res, 404, { error: 'introuvable' });
   } catch (err) { console.error(err); if (!res.headersSent) json(res, 500, { error: 'erreur serveur' }); }
 }).listen(PORT, '127.0.0.1', () => console.log(`recette locale sur http://127.0.0.1:${PORT} · jeton CRM de test : ${TOKEN}`));

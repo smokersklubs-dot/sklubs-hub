@@ -48,7 +48,8 @@ test('bloc interne : transport au kilo, poids, frais fixes, marges minimales ; a
   assert.equal(pen.internal.transport.weight.unitWeightKg, 0.01575);
   assert.equal(pen.internal.marginFloor, null, 'pas de plancher de marge dans le moteur des produits génériques');
   assert.deepEqual(mylar.thicknesses, [0.1, 0.12, 0.14]);
-  assert.ok(mylar.materials.every((m) => m.description && m.thicknesses.length));
+  assert.ok(mylar.materials.filter((m) => !m.offCatalog).every((m) => m.description && m.thicknesses.length));
+  assert.ok(mylar.materials.filter((m) => m.offCatalog).every((m) => m.description && m.status && m.thicknesses.length === 0), 'matière hors catalogue : statut, aucune épaisseur inventée');
   const crm = JSON.stringify(entries);
   for (const key of ['rmb', 'mk', 'fx', 'secFx', 'usine', 'cost0', 'mats', 'idx', 'mkt']) assert.equal(crm.includes('"' + key + '"'), false, 'aucun paramètre usine : ' + key);
   const pub = JSON.stringify(catalogEntries(p));
