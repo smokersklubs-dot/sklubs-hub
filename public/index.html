@@ -1395,6 +1395,7 @@ const FACTORY_QUOTE_SOURCE = 'Shenzhen Creative Star — fiche Cricket, 10/11/20
 const FACTORY_QUOTE_CURRENCY = { code: 'CNY', confirmed: false, note: 'Devise non écrite sur la fiche : RMB (CNY) à confirmer' };
 // line : n° de ligne de la fiche ; q : quantité cotée (palier unique) ; unit et total en RMB ; sample : échantillon en RMB.
 const FACTORY_QUOTES = [
+  { line: 1, product: 'badge', label: 'Badges', spec: '5 mm, fer-blanc', designs: 2, q: 1000, unit: 4, total: 4000, sample: 300, sampleApprox: true, sampleNote: null, sampleDays: '5-7', productionDays: '15-20' },
 ];
 const factoryQuotesFor = (id) => FACTORY_QUOTES.filter((x) => x.product === id);
 const factoryQuotesOffHub = () => FACTORY_QUOTES.filter((x) => !x.product);
